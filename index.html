@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM DeepDive // Interactive Neural Pipeline Explorer for B.Tech Engineers</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Plotly.js for 3D Vector Space -->
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+  <!-- KaTeX for crisp mathematical formulas -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="min-h-screen text-slate-100 selection:bg-indigo-500 selection:text-white">
+
+  <!-- Ambient Light Orbs -->
+  <div class="ambient-glow-1"></div>
+  <div class="ambient-glow-2"></div>
+  <div class="ambient-grid"></div>
+
+  <!-- Top Sticky Navigation Bar -->
+  <header class="sticky top-0 z-50 backdrop-blur-xl bg-[#07090e]/80 border-b border-white/10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-cyan-400 flex items-center justify-center font-extrabold text-white shadow-lg shadow-indigo-500/30">
+          &lambda;
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-bold text-base tracking-tight text-white">LLM DeepDive</span>
+            <span class="badge-pill badge-indigo">B.Tech Edition</span>
+          </div>
+          <p class="text-[11px] text-slate-400 font-mono">From Raw Text to Probabilistic Intelligence</p>
+        </div>
+      </div>
+
+      <!-- Quick Nav Links -->
+      <nav class="hidden md:flex items-center gap-1 text-xs font-mono">
+        <a href="#stage-tokenizer" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition">1. Tokenizer</a>
+        <a href="#stage-embeddings" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition">2. Embeddings 3D</a>
+        <a href="#stage-positional" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition">3. Positional</a>
+        <a href="#stage-attention" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition">4. Self-Attention</a>
+        <a href="#stage-sampling" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition">5. Softmax &amp; Sampling</a>
+        <a href="#stage-autoregressive" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition">6. Generation Loop</a>
+        <a href="#stage-quiz" class="px-3 py-1.5 rounded-lg text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 transition font-bold">&star; Concept Quiz</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
+    <div class="text-center max-w-3xl mx-auto mb-16">
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-mono mb-6">
+        <span class="pulse-dot"></span>
+        Interactive Neural Architecture Explainer &bull; Vaswani et al. (2017)
+      </div>
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white mb-6 leading-tight">
+        How do <span class="bg-gradient-to-r from-indigo-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">Large Language Models</span> actually work?
+      </h1>
+      <p class="text-base sm:text-lg text-slate-300 leading-relaxed mb-8">
+        No hand-waving, no magic black boxes. Connect high-school algebra, matrix multiplications, and Python fundamentals directly to state-of-the-art Generative AI.
+      </p>
+
+      <!-- Global Pipeline Stepper Overview -->
+      <div class="glass-panel p-4 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-slate-400">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+          <span class="font-bold">1. Tokenize</span>
+          <span class="text-slate-600">&rarr;</span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+          <span class="font-bold">2. Embed (3D)</span>
+          <span class="text-slate-600">&rarr;</span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30">
+          <span class="font-bold">3. Positional Encoding</span>
+          <span class="text-slate-600">&rarr;</span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          <span class="font-bold">4. Multi-Head Attention</span>
+          <span class="text-slate-600">&rarr;</span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/30">
+          <span class="font-bold">5. Softmax &amp; Temp</span>
+          <span class="text-slate-600">&rarr;</span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-500/20 text-violet-300 border border-violet-500/30">
+          <span class="font-bold">6. Autoregressive Output</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- STAGE 1: BYTE-PAIR ENCODING (BPE) & TOKENIZATION -->
+    <!-- ================================================================= -->
+    <section id="stage-tokenizer" class="glass-panel p-6 sm:p-8 rounded-3xl mb-16 glow-border-indigo">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <span class="badge-pill badge-indigo mb-2">Stage 01</span>
+          <h2 class="text-2xl sm:text-3xl font-bold text-white">The Tokenizer: Byte-Pair Encoding (BPE)</h2>
+          <p class="text-slate-400 text-sm mt-1">Computers cannot read letters; they process integers. How does English text convert to an array of integers?</p>
+        </div>
+        <div class="text-right font-mono text-xs text-slate-400">
+          Time Complexity: <span class="text-cyan-400 font-bold">O(N)</span>
+        </div>
+      </div>
+
+      <!-- Pedagogical Callout for B.Tech -->
+      <div class="btech-callout mb-6">
+        <h4 class="text-sm font-bold text-cyan-300 mb-1">&bull; The First-Year Mental Model: The Subword Dictionary</h4>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Why not full words? If every word had an ID, the dictionary would need 1,000,000+ IDs (huge GPU memory), and typos like "heyyy" would break. Why not single characters? Sentences would take thousands of steps.
+          <strong>BPE is the golden middle</strong>: Frequent combinations like <code class="text-cyan-300">"th"</code> and <code class="text-cyan-300">"ing"</code> become single tokens, while rare words are broken into subword pieces!
+        </p>
+      </div>
+
+      <!-- Interactive Tokenizer Playground -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="lg:col-span-2 space-y-4">
+          <label class="block text-xs font-mono text-slate-300 font-semibold uppercase tracking-wider">
+            Input Sentence to Tokenize:
+          </label>
+          <textarea id="tokenizer-input" rows="3" class="w-full text-base font-mono" placeholder="Type any sentence here...">The cat sat on the mat.</textarea>
+
+          <!-- Quick Presets -->
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs text-slate-400 font-mono">Try presets:</span>
+            <button class="tokenizer-preset text-xs px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 transition" data-text="The cat sat on the mat.">The cat sat on the mat.</button>
+            <button class="tokenizer-preset text-xs px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 transition" data-text="Transformers revolutionized Artificial Intelligence in 2017.">Vaswani 2017</button>
+            <button class="tokenizer-preset text-xs px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 transition" data-text="def fibonacci(n): return n if n <= 1 else fib(n-1) + fib(n-2)">Python Code</button>
+            <button class="tokenizer-preset text-xs px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 transition" data-text="antidisestablishmentarianism and strawberry">Subword Chunks</button>
+          </div>
+
+          <!-- Token Chips Display -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-mono text-slate-400">Interactive Token Chips (Click any token to inspect in Attention Stage):</span>
+              <span class="text-[11px] font-mono text-indigo-400">Color changes per token &bull; ␣ denotes space</span>
+            </div>
+            <div id="token-chips-container" class="flex flex-wrap gap-2 p-4 rounded-xl bg-black/40 border border-white/5 min-h-[70px] items-center">
+              <!-- Dynamically populated by app.js -->
+            </div>
+          </div>
+
+          <!-- Token Stats -->
+          <div id="token-stats" class="p-3 rounded-xl bg-white/5 border border-white/5">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Vocab Size Slider Control -->
+        <div class="glass-panel-elevated p-5 rounded-2xl flex flex-col justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-white mb-2 flex items-center justify-between">
+              <span>Vocabulary Size Control</span>
+              <span id="vocab-slider-val" class="font-mono text-cyan-400 text-base">50</span>
+            </h3>
+            <p class="text-xs text-slate-400 mb-4">
+              Drag left to simulate a tiny vocabulary. Watch how words shatter into smaller subwords and individual characters!
+            </p>
+            <input type="range" id="vocab-slider" min="10" max="120" value="50" class="w-full mb-4">
+
+            <div class="text-[11px] font-mono space-y-2 text-slate-300 bg-black/30 p-3 rounded-lg border border-white/5">
+              <div class="flex justify-between">
+                <span>Standard GPT-4 Vocab:</span>
+                <strong class="text-indigo-400">100,277 tokens</strong>
+              </div>
+              <div class="flex justify-between">
+                <span>Llama 3 Vocab:</span>
+                <strong class="text-cyan-400">128,256 tokens</strong>
+              </div>
+              <div class="flex justify-between">
+                <span>Our Mini Simulator:</span>
+                <strong class="text-emerald-400">10 &ndash; 120 tokens</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-white/10 text-[11px] text-slate-400">
+            <strong class="text-slate-300">Why token pricing exists:</strong> OpenAI/Anthropic charge per token because each token requires one forward pass across 70B+ weights!
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pipeline Connector -->
+    <div class="pipeline-connector">
+      <span class="pipeline-connector-badge">Tokens &rarr; Vectors (Matrix Lookup)</span>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- STAGE 2: VECTOR EMBEDDINGS IN 3D SPACE -->
+    <!-- ================================================================= -->
+    <section id="stage-embeddings" class="glass-panel p-6 sm:p-8 rounded-3xl mb-16 glow-border-cyan">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <span class="badge-pill badge-cyan mb-2">Stage 02</span>
+          <h2 class="text-2xl sm:text-3xl font-bold text-white">Embeddings &amp; 3D Semantic Vector Space</h2>
+          <p class="text-slate-400 text-sm mt-1">How tokens get mapped to continuous coordinates in a high-dimensional geometric space ($\mathbb{R}^d$).</p>
+        </div>
+        <div class="text-right font-mono text-xs text-slate-400">
+          Dimensionality: <span class="text-cyan-400 font-bold">16-D &rarr; Projected to 3-D via PCA</span>
+        </div>
+      </div>
+
+      <!-- Pedagogical Callout -->
+      <div class="btech-callout mb-6">
+        <h4 class="text-sm font-bold text-cyan-300 mb-1">&bull; The First-Year Mental Model: GPS Coordinates for Meaning</h4>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Just as GPS locates a physical spot with $(latitude, longitude)$, an Embedding Matrix locates a concept with an array of numbers (e.g. 4096 dimensions in LLaMA).
+          Words with similar meanings (like <code class="text-emerald-400">"kitten"</code> and <code class="text-emerald-400">"cat"</code>) have nearly parallel vectors with small angular distance!
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <!-- 3D Plotly Visualizer -->
+        <div class="lg:col-span-2 glass-panel-elevated p-4 rounded-2xl relative">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-mono text-slate-400 flex items-center gap-2">
+              <span>Interactive 3D Scatter (Click &amp; drag to rotate, scroll to zoom)</span>
+            </span>
+            <div class="flex items-center gap-3 text-[11px] font-mono">
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> Animals</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span> Tech</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Royalty</span>
+            </div>
+          </div>
+          <div id="embedding-plotly-container" style="height: 480px; width: 100%;"></div>
+        </div>
+
+        <!-- Sentence Dataset & Custom Ingestion -->
+        <div class="space-y-4">
+          <div class="glass-panel-elevated p-4 rounded-2xl">
+            <label class="block text-xs font-mono text-slate-300 font-semibold mb-2">Sentences in Semantic Corpus:</label>
+            <textarea id="embed-sentences" rows="7" class="text-xs font-mono leading-relaxed">The cat sat on the mat.
+A kitten rested on the rug.
+The puppy jumped on the carpet.
+A wolf prowled in the forest.
+Python is my favorite programming language.
+Coding algorithms requires mathematical logic.
+Transformers rely on multi-head self-attention.
+Deep neural networks process multidimensional tensors.
+The king ruled his magnificent castle.
+The queen welcomed the visiting prince.</textarea>
+            <button id="embed-replot-btn" class="btn btn-secondary w-full text-xs mt-3">Recompute &amp; Re-plot 3D</button>
+          </div>
+
+          <div class="glass-panel-elevated p-4 rounded-2xl">
+            <label class="block text-xs font-mono text-slate-300 font-semibold mb-2">Inject Your Own Custom Text:</label>
+            <div class="flex gap-2">
+              <input type="text" id="custom-word-input" placeholder="e.g. lion, or: I love data structures" class="text-xs font-mono">
+              <button id="add-word-btn" class="btn btn-primary text-xs px-3 whitespace-nowrap">Inject &bull;</button>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-2">Will be highlighted as a glowing rose point in the 3D space.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Closest Pairs Table via Cosine Similarity -->
+      <div class="mb-8">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>Semantic Proximity Leaderboard (Cosine Similarity)</span>
+          </h3>
+          <span class="text-xs font-mono text-slate-400">Formula: $\cos(\theta) = \frac{\mathbf{u} \cdot \mathbf{v}}{\|\mathbf{u}\| \|\mathbf{v}\|}$</span>
+        </div>
+        <div id="closest-pairs-output" class="glass-panel-elevated p-3 rounded-2xl">
+          <!-- Populated by app.js -->
+        </div>
+      </div>
+
+      <!-- Vector Arithmetic: King - Man + Woman = Queen -->
+      <div class="glass-panel-elevated p-6 rounded-2xl border border-indigo-500/30">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div>
+            <span class="badge-pill badge-amber">Vector Algebra</span>
+            <h3 class="text-lg font-bold text-white mt-1">Linear Substructures in Latent Space</h3>
+            <p class="text-xs text-slate-400">Embeddings encode human relational concepts as physical vector directions!</p>
+          </div>
+          <div class="text-xs font-mono text-indigo-400 bg-indigo-500/10 px-3 py-1.5 rounded-lg border border-indigo-500/20">
+            Mikolov et al. (Word2Vec)
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+          <div>
+            <label class="text-[11px] font-mono text-slate-400 block mb-1">Vector A:</label>
+            <input type="text" id="vec-word-a" value="king" class="font-mono text-sm">
+          </div>
+          <div>
+            <label class="text-[11px] font-mono text-slate-400 block mb-1">&minus; Subtract Vector B:</label>
+            <input type="text" id="vec-word-b" value="man" class="font-mono text-sm">
+          </div>
+          <div>
+            <label class="text-[11px] font-mono text-slate-400 block mb-1">+ Add Vector C:</label>
+            <input type="text" id="vec-word-c" value="woman" class="font-mono text-sm">
+          </div>
+          <div>
+            <label class="text-[11px] font-mono text-slate-400 block mb-1">&nbsp;</label>
+            <button id="vec-calc-btn" class="btn btn-primary w-full text-xs">Compute Vector Math &rarr;</button>
+          </div>
+        </div>
+
+        <div id="vec-arithmetic-result" class="mt-4">
+          <!-- Populated by app.js -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Pipeline Connector -->
+    <div class="pipeline-connector">
+      <span class="pipeline-connector-badge">Static Vectors + Positional Encoding</span>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- STAGE 3: POSITIONAL ENCODINGS -->
+    <!-- ================================================================= -->
+    <section id="stage-positional" class="glass-panel p-6 sm:p-8 rounded-3xl mb-16 glow-border-indigo">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <span class="badge-pill badge-amber mb-2">Stage 03</span>
+          <h2 class="text-2xl sm:text-3xl font-bold text-white">Positional Encodings: Why Order Matters</h2>
+          <p class="text-slate-400 text-sm mt-1">Self-attention is completely permutation-invariant. How does the model know word order?</p>
+        </div>
+        <div class="text-right font-mono text-xs text-slate-400">
+          Operation: <span class="text-amber-400 font-bold">Element-wise Vector Addition</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+        <div>
+          <div class="btech-callout mb-4">
+            <h4 class="text-sm font-bold text-amber-300 mb-1">&bull; The First-Year Mental Model: The Anarchy of Unordered Sets</h4>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Without positions, the mathematical dot-product matrix sees:
+              <br><code class="text-rose-400">"Dog bites man"</code> &nbsp;and&nbsp; <code class="text-rose-400">"Man bites dog"</code> as <strong>100% IDENTICAL</strong>!
+              Because Self-Attention operates on sets, we must physically inject a unique wave pattern into each token vector based on its index position $pos$.
+            </p>
+          </div>
+
+          <div class="btech-formula-card text-xs font-mono mb-4">
+            <div class="text-slate-400 mb-2">Vaswani Sinusoidal Positional Formulas:</div>
+            $$\begin{aligned}
+            PE_{(pos, 2i)} &= \sin\left(\frac{pos}{10000^{2i/d}}\right) \\
+            PE_{(pos, 2i+1)} &= \cos\left(\frac{pos}{10000^{2i/d}}\right)
+            \end{aligned}$$
+            <div class="text-[11px] text-slate-500 mt-2">
+              Where $pos$ is token sequence index ($0, 1, 2, \dots$), $i$ is vector dimension index, and $d$ is embedding size.
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual demonstration -->
+        <div class="glass-panel-elevated p-5 rounded-2xl space-y-4">
+          <h3 class="text-sm font-bold text-white">Interactive Order Comparison</h3>
+          
+          <div class="p-3 rounded-xl bg-black/40 border border-white/5 space-y-2">
+            <div class="text-xs text-slate-400 font-mono">Sentence 1:</div>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 rounded bg-indigo-500/20 text-indigo-300 text-xs font-mono border border-indigo-500/30">Dog [pos=0]</span>
+              <span class="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-xs font-mono border border-rose-500/30">bites [pos=1]</span>
+              <span class="px-2 py-1 rounded bg-cyan-500/20 text-cyan-300 text-xs font-mono border border-cyan-500/30">man [pos=2]</span>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-black/40 border border-white/5 space-y-2">
+            <div class="text-xs text-slate-400 font-mono">Sentence 2 (Reversed Subject/Object):</div>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 rounded bg-cyan-500/20 text-cyan-300 text-xs font-mono border border-cyan-500/30">Man [pos=0]</span>
+              <span class="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-xs font-mono border border-rose-500/30">bites [pos=1]</span>
+              <span class="px-2 py-1 rounded bg-indigo-500/20 text-indigo-300 text-xs font-mono border border-indigo-500/30">dog [pos=2]</span>
+            </div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 font-mono">
+            &check; <strong>Total Input Vector:</strong> $\mathbf{X} = \mathbf{E}_{token} + \mathbf{PE}_{pos}$
+            <br>Now the Transformer can differentiate who is doing the biting!
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pipeline Connector -->
+    <div class="pipeline-connector">
+      <span class="pipeline-connector-badge">Input Vectors &rarr; Multi-Head Attention Blocks</span>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- STAGE 4: THE TRANSFORMER ENGINE — SELF-ATTENTION (Q, K, V) -->
+    <!-- ================================================================= -->
+    <section id="stage-attention" class="glass-panel p-6 sm:p-8 rounded-3xl mb-16 glow-border-cyan">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <span class="badge-pill badge-emerald mb-2">Stage 04 &bull; The Core Engine</span>
+          <h2 class="text-2xl sm:text-3xl font-bold text-white">Self-Attention Mechanism ($Q, K, V$)</h2>
+          <p class="text-slate-400 text-sm mt-1">How every word computes context by attending to every other word in the prompt.</p>
+        </div>
+        <div class="text-right font-mono text-xs text-slate-400">
+          Compute Complexity: <span class="text-rose-400 font-bold">O(N&sup2;)</span>
+        </div>
+      </div>
+
+      <!-- Pedagogical Callout -->
+      <div class="btech-callout mb-6">
+        <h4 class="text-sm font-bold text-cyan-300 mb-1">&bull; The First-Year Mental Model: The Search Engine / Key-Value Database Analogy</h4>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Imagine searching a library:
+          <br>1. <strong>Query ($Q$)</strong>: What you type in the search bar (e.g. pronoun <code class="text-cyan-300">"it"</code> asking <em>"who am I referring to?"</em>).
+          <br>2. <strong>Key ($K$)</strong>: The label or tags on each book in the catalog.
+          <br>3. <strong>Dot Product ($Q \cdot K^T$)</strong>: Relevance score between your search query and each catalog key.
+          <br>4. <strong>Value ($V$)</strong>: The actual content inside the matched book extracted with weighted importance!
+        </p>
+      </div>
+
+      <!-- The Vaswani Formula -->
+      <div class="btech-formula-card mb-8">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div class="text-xs font-mono text-slate-400 uppercase tracking-wider mb-1">The Golden Equation (Vaswani et al., 2017):</div>
+            $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d_k}}\right) V$$
+          </div>
+          <div class="text-xs font-mono text-slate-300 max-w-sm bg-black/40 p-3 rounded-lg border border-white/5">
+            <strong class="text-cyan-400">Why divide by $\sqrt{d_k}$?</strong>
+            <br>For large dimensions $d_k$, dot products grow huge ($Q \cdot K \sim d_k$). Large numbers push the Softmax function into saturated regions with tiny near-zero gradients (the vanishing gradient problem!). Dividing by $\sqrt{d_k}$ stabilizes variance to 1.
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive Multi-Head Switcher & Matrix -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="lg:col-span-2 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <span class="text-xs font-mono text-slate-300 font-semibold">Select Attention Head:</span>
+            <div class="flex gap-2">
+              <button class="btn btn-primary attention-head-btn text-xs active" data-head="syntactic">Head 1: Syntactic (Grammar)</button>
+              <button class="btn btn-secondary attention-head-btn text-xs" data-head="referential">Head 2: Coreference (Pronoun)</button>
+              <button class="btn btn-secondary attention-head-btn text-xs" data-head="semantic">Head 3: Semantic Affinity</button>
+            </div>
+          </div>
+
+          <!-- Attention Heatmap Matrix Display -->
+          <div class="glass-panel-elevated p-5 rounded-2xl overflow-x-auto">
+            <div class="text-xs font-mono text-slate-400 mb-3 flex items-center justify-between">
+              <span>Attention Weight Heatmap ($N \times N$ Softmax Probability):</span>
+              <span class="text-[11px] text-cyan-400">Click any row to change focus token</span>
+            </div>
+            <div id="attention-heatmap-grid" class="flex justify-center p-2 min-h-[220px]">
+              <!-- Populated by app.js -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Token Attention Breakdown Focus -->
+        <div class="glass-panel-elevated p-5 rounded-2xl flex flex-col justify-between">
+          <div>
+            <span class="badge-pill badge-cyan mb-2">Attention Inspector</span>
+            <h3 class="text-sm font-bold text-white mb-1">Focus Token Attention Distribution</h3>
+            <p class="text-xs text-slate-400">Which words does this token pay the most attention to?</p>
+            
+            <div id="focus-token-display" class="mt-4 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-mono font-bold text-sm text-center">
+              "The" (Token #1)
+            </div>
+
+            <div id="focus-token-weights">
+              <!-- Populated by app.js -->
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-white/10 text-[11px] font-mono text-slate-400">
+            Multi-Head Attention runs <strong>8 to 128 heads</strong> in parallel, letting the model simultaneously track grammar, facts, and sentiment!
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pipeline Connector -->
+    <div class="pipeline-connector">
+      <span class="pipeline-connector-badge">Attention Output &rarr; Residual Add &amp; FFN</span>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- STAGE 5: RESIDUAL CONNECTIONS & FEED-FORWARD NETWORK (FFN) -->
+    <!-- ================================================================= -->
+    <section class="glass-panel p-6 sm:p-8 rounded-3xl mb-16 glow-border-indigo">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <span class="badge-pill badge-rose mb-2">Stage 05</span>
+          <h2 class="text-2xl sm:text-3xl font-bold text-white">Feed-Forward Network (FFN) &amp; Residual Highways</h2>
+          <p class="text-slate-400 text-sm mt-1">Where factual knowledge is stored and gradients are kept alive across 80+ layers.</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="p-5 rounded-2xl bg-white/5 border border-white/10">
+          <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm mb-3">&plus;</div>
+          <h3 class="text-base font-bold text-white mb-2">Residual Skip Connection</h3>
+          <p class="text-xs text-slate-300 leading-relaxed font-mono">
+            $$\mathbf{x}_{\text{out}} = \mathbf{x} + \text{Attention}(\mathbf{x})$$
+            Directly adds original input to the output. Acts as an uninterrupted highway allowing backpropagation gradients to flow without vanishing.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-white/5 border border-white/10">
+          <div class="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-sm mb-3">&mu;</div>
+          <h3 class="text-base font-bold text-white mb-2">Layer Normalization (RMSNorm)</h3>
+          <p class="text-xs text-slate-300 leading-relaxed font-mono">
+            $$\text{RMSNorm}(x) = \frac{x}{\sqrt{\frac{1}{d} \sum_{i=1}^d x_i^2 + \epsilon}} \odot \gamma$$
+            Stabilizes activations across the network so numbers don't explode to $\infty$ or shrink to $0$.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-white/5 border border-white/10">
+          <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm mb-3">&fnof;</div>
+          <h3 class="text-base font-bold text-white mb-2">MLP / FFN Memory Bank</h3>
+          <p class="text-xs text-slate-300 leading-relaxed font-mono">
+            $$\text{FFN}(x) = \text{GELU}(x W_1 + b_1) W_2 + b_2$$
+            Expands dimensions $4\times$ ($d \to 4d \to d$). Research shows FFN layers act like associative memory storing world facts!
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pipeline Connector -->
+    <div class="pipeline-connector">
+      <span class="pipeline-connector-badge">Final Layer Hidden State &rarr; Logits &rarr; Softmax</span>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- STAGE 6: SOFTMAX, TEMPERATURE & SAMPLING (TOP-K & TOP-P) -->
+    <!-- ================================================================= -->
+    <section id="stage-sampling" class="glass-panel p-6 sm:p-8 rounded-3xl mb-16 glow-border-cyan">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <span class="badge-pill badge-cyan mb-2">Stage 06 &bull; Probabilistic Generation</span>
+          <h2 class="text-2xl sm:text-3xl font-bold text-white">Softmax &amp; The Creative Sampling Playground</h2>
+          <p class="text-slate-400 text-sm mt-1">How the model converts raw scores (logits) into a probability distribution and decides the next token.</p>
+        </div>
+        <div class="text-right font-mono text-xs text-slate-400">
+          Formula: <span class="text-cyan-400 font-bold">$P(w_i) = \frac{e^{z_i / T}}{\sum e^{z_j / T}}$</span>
+        </div>
+      </div>
+
+      <!-- Pedagogical Callout -->
+      <div class="btech-callout mb-6">
+        <h4 class="text-sm font-bold text-cyan-300 mb-1">&bull; The First-Year Mental Model: Rolling a Weighted 50,000-Sided Die</h4>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          An LLM never outputs text directly; it outputs a <strong>probability distribution</strong> over every token in its dictionary!
+          <br>&bull; <strong>Temperature ($T$)</strong> controls how peaked or flat the dice probabilities are.
+          <br>&bull; <strong>Top-K</strong> restricts rolling to only the top $K$ faces of the die.
+          <br>&bull; <strong>Top-P (Nucleus)</strong> dynamically keeps the smallest subset of words that together sum to $P\%$ probability mass.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Interactive Sliders -->
+        <div class="glass-panel-elevated p-6 rounded-2xl space-y-6">
+          <div>
+            <label class="block text-xs font-mono text-slate-400 mb-2">Prompt Context for Next Token:</label>
+            <select id="sampling-context-select" class="text-xs font-mono">
+              <option value="the cat sat on the">"The cat sat on the..."</option>
+              <option value="python is a great">"Python is a great..."</option>
+              <option value="neural networks learn from">"Neural networks learn from..."</option>
+            </select>
+          </div>
+
+          <!-- Temperature Slider -->
+          <div>
+            <div class="flex justify-between items-center text-xs font-mono mb-2">
+              <span class="text-white font-bold">Temperature ($T$):</span>
+              <span id="temp-value" class="text-cyan-400 font-bold text-sm">0.70</span>
+            </div>
+            <input type="range" id="temp-slider" min="0.05" max="2.0" step="0.05" value="0.70" class="w-full">
+            <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+              <span>0.1 (Greedy / Argmax)</span>
+              <span>0.7 (Balanced)</span>
+              <span>2.0 (Chaotic)</span>
+            </div>
+          </div>
+
+          <!-- Top-K Slider -->
+          <div>
+            <div class="flex justify-between items-center text-xs font-mono mb-2">
+              <span class="text-white font-bold">Top-K Cutoff:</span>
+              <span id="topk-value" class="text-indigo-400 font-bold text-sm">5</span>
+            </div>
+            <input type="range" id="topk-slider" min="1" max="8" step="1" value="5" class="w-full">
+            <p class="text-[10px] text-slate-400 mt-1">Only the top $K$ tokens can be sampled. Tokens below are pruned to $0\%$.</p>
+          </div>
+
+          <!-- Top-P Slider -->
+          <div>
+            <div class="flex justify-between items-center text-xs font-mono mb-2">
+              <span class="text-white font-bold">Top-P (Nucleus):</span>
+              <span id="topp-value" class="text-emerald-400 font-bold text-sm">0.90</span>
+            </div>
+            <input type="range" id="topp-slider" min="0.10" max="1.00" step="0.05" value="0.90" class="w-full">
+            <p class="text-[10px] text-slate-400 mt-1">Cut off the long tail once cumulative probability reaches $P$.</p>
+          </div>
+        </div>
+
+        <!-- Live Probability Distribution Visualizer -->
+        <div class="lg:col-span-2 glass-panel-elevated p-6 rounded-2xl">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>Live Softmax Probability Distribution</span>
+            </h3>
+            <span class="text-xs font-mono text-slate-400">Calculated in real-time</span>
+          </div>
+          <div id="sampling-bars-container">
+            <!-- Populated by app.js -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pipeline Connector -->
+    <div class="pipeline-connector">
+      <span class="pipeline-connector-badge">Predicted Token Appended &rarr; Autoregressive Loop</span>
+    </div>
+
+    <!-- ================================================================= -->
+    <!-- STAGE 7: AUTOREGRESSIVE GENERATION STUDIO & KV CACHE -->
+    <!-- ================================================================= -->
+    <section id="stage-autoregressive" class="glass-panel p-6 sm:p-8 rounded-3xl mb-16 glow-border-indigo">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <span class="badge-pill badge-violet mb-2">Stage 07</span>
+          <h2 class="text-2xl sm:text-3xl font-bold text-white">Autoregressive Generation Studio</h2>
+          <p class="text-slate-400 text-sm mt-1">How LLMs write essays one token at a time by feeding their own output back into their input.</p>
+        </div>
+        <div class="text-right font-mono text-xs text-slate-400">
+          KV Cache: <span id="kv-cache-counter" class="text-emerald-400 font-bold">5 vectors cached</span>
+        </div>
+      </div>
+
+      <!-- Live Stream Simulator -->
+      <div class="glass-panel-elevated p-6 rounded-2xl space-y-6">
+        <div>
+          <label class="block text-xs font-mono text-slate-300 font-semibold mb-2">Active Generation Stream:</label>
+          <div id="auto-gen-stream" class="p-4 rounded-xl bg-black/50 border border-white/10 min-h-[90px] flex flex-wrap items-center">
+            <!-- Populated by app.js -->
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button id="auto-gen-step-btn" class="btn btn-primary text-xs">
+            <span>&plus; Generate 1 Token</span>
+          </button>
+          <button id="auto-gen-play-btn" class="btn btn-accent-cyan text-xs">
+            <span>&blacktriangleright; Auto Play</span>
+          </button>
+          <button id="auto-gen-reset-btn" class="btn btn-secondary text-xs">
+            <span>&circlearrowright; Reset Stream</span>
+          </button>
+        </div>
+
+        <!-- KV Cache Explanation -->
+        <div class="p-4 rounded-xl bg-slate-900/80 border border-emerald-500/20 text-xs font-mono text-slate-300 space-y-2">
+          <div class="text-emerald-400 font-bold flex items-center gap-2">
+            <span>&bull; Why Generation Doesn't Slow Down: The KV Cache</span>
+          </div>
+          <p class="leading-relaxed">
+            In naive generation, predicting the 100th token would re-run attention over all 99 previous tokens from scratch ($O(N^2)$ per step).
+            With a <strong>KV Cache</strong>, the GPU saves the Key and Value matrices of all prior tokens in high-speed VRAM. The model only computes $Q$ for the single newest token, dropping computation per step to $O(1)$!
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- STAGE 8: B.TECH CONCEPT CHECKPOINTS (INTERACTIVE QUIZ) -->
+    <!-- ================================================================= -->
+    <section id="stage-quiz" class="glass-panel p-6 sm:p-8 rounded-3xl mb-16 glow-border-cyan">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <span class="badge-pill badge-amber mb-2">Knowledge Check</span>
+          <h2 class="text-2xl sm:text-3xl font-bold text-white">B.Tech Engineering Exam Checkpoints</h2>
+          <p class="text-slate-400 text-sm mt-1">Test your mental models against typical semester exam &amp; interview questions!</p>
+        </div>
+      </div>
+
+      <div id="btech-quiz-container">
+        <!-- Populated by app.js -->
+      </div>
+    </section>
+
+    <!-- Code Bridge Section: Math to PyTorch -->
+    <section class="glass-panel p-6 sm:p-8 rounded-3xl mb-16 border border-white/10">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <span class="badge-pill badge-indigo mb-2">Bridge To Code</span>
+          <h3 class="text-xl font-bold text-white">From Math to Python: 10 Lines of PyTorch Attention</h3>
+          <p class="text-xs text-slate-400 mt-1">The exact Python code you will write in your machine learning lab.</p>
+        </div>
+      </div>
+
+      <pre class="p-4 rounded-xl bg-black/60 border border-white/10 text-xs font-mono text-emerald-400 overflow-x-auto leading-relaxed"><code>import torch
+import torch.nn.functional as F
+
+def scaled_dot_product_attention(Q, K, V):
+    # Q, K, V have shape: (batch_size, num_heads, seq_len, head_dim)
+    d_k = Q.size(-1)
+    
+    # 1. MatMul Q and K^T: (seq_len x seq_len)
+    scores = torch.matmul(Q, K.transpose(-2, -1)) / (d_k ** 0.5)
+    
+    # 2. Softmax along the last dimension
+    attention_weights = F.softmax(scores, dim=-1)
+    
+    # 3. Weighted sum of Value vectors
+    output = torch.matmul(attention_weights, V)
+    return output, attention_weights</code></pre>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-white/10 py-12 relative z-10 text-center text-xs text-slate-500 font-mono">
+    <div class="max-w-7xl mx-auto px-4 space-y-3">
+      <p>LLM DeepDive &bull; Crafted with Elite UI/UX &amp; Rigorous Pedagogy for 1st-Year B.Tech Students</p>
+      <p class="text-[11px] text-slate-600">Based on Attention Is All You Need (Vaswani et al., 2017) &bull; Zero Server Dependencies</p>
+    </div>
+  </footer>
+
+  <!-- Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
