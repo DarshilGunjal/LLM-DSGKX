@@ -100,6 +100,12 @@ html, body {
   background: #F2EFE9;
 }
 
+/* Firefox scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #FF3B00 #0B0B0C;
+}
+
 /* Typography Helpers */
 .font-instrument {
   font-family: 'Instrument Serif', Georgia, serif;

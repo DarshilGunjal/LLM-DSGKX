@@ -913,7 +913,13 @@ main();`;
         </main>
 
         {/* Right Sidebar: PARAMETERS Panel (Matching Groq Console) */}
-        <aside className="w-full lg:w-80 xl:w-96 flex-shrink-0 h-full overflow-y-auto bg-[#0B0B0C] border-t lg:border-t-0 border-[#F2EFE9]/15 p-6 space-y-6 select-none">
+        <aside
+          className="w-full lg:w-80 xl:w-96 flex-shrink-0 min-h-0 max-h-full h-full overflow-y-auto overscroll-contain bg-[#0B0B0C] border-t lg:border-t-0 border-[#F2EFE9]/15 p-6 pb-24 space-y-6"
+          style={{
+            scrollbarWidth: "thin",
+            scrollbarColor: "#FF3B00 #0B0B0C",
+          }}
+        >
           <div className="flex justify-between items-center text-xs font-mono border-b border-[#F2EFE9]/15 pb-3">
             <span className="text-[#FF3B00] font-bold uppercase tracking-wider">
               [PARAMETERS]
