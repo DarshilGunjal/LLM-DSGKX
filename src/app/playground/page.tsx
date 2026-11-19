@@ -8,6 +8,7 @@ interface Message {
   id: string;
   role: "system" | "user" | "assistant";
   content: string;
+  isError?: boolean;
   metrics?: {
     latencyMs?: number;
     tokensPerSec?: number;
@@ -18,13 +19,47 @@ interface Message {
 interface ModelOption {
   id: string;
   name: string;
-  provider: "groq" | "xai";
+  provider: "xai" | "groq";
   context: string;
   speed: string;
   badge: string;
 }
 
-const MODELS: ModelOption[] = [
+const ALL_MODELS: ModelOption[] = [
+  // xAI Grok Models
+  {
+    id: "grok-2-latest",
+    name: "xAI Grok-2 Latest",
+    provider: "xai",
+    context: "128k context",
+    speed: "~160 tok/s",
+    badge: "RECOMMENDED",
+  },
+  {
+    id: "grok-2",
+    name: "xAI Grok-2",
+    provider: "xai",
+    context: "128k context",
+    speed: "~150 tok/s",
+    badge: "OFFICIAL",
+  },
+  {
+    id: "grok-beta",
+    name: "xAI Grok Beta",
+    provider: "xai",
+    context: "128k context",
+    speed: "~170 tok/s",
+    badge: "BETA",
+  },
+  {
+    id: "grok-vision-beta",
+    name: "xAI Grok Vision Beta",
+    provider: "xai",
+    context: "128k context",
+    speed: "~140 tok/s",
+    badge: "VISION",
+  },
+  // Groq LPU Models
   {
     id: "llama-3.3-70b-versatile",
     name: "Llama 3.3 70B Versatile",
@@ -58,46 +93,40 @@ const MODELS: ModelOption[] = [
     badge: "MOE",
   },
   {
-    id: "grok-2-latest",
-    name: "xAI Grok-2 Latest",
-    provider: "xai",
-    context: "128k context",
-    speed: "~150 tok/s",
-    badge: "XAI GROK",
-  },
-  {
-    id: "grok-beta",
-    name: "xAI Grok Beta",
-    provider: "xai",
-    context: "128k context",
-    speed: "~160 tok/s",
-    badge: "XAI GROK",
+    id: "gemma2-9b-it",
+    name: "Google Gemma 2 9B",
+    provider: "groq",
+    context: "8k context",
+    speed: "~700 tok/s",
+    badge: "GEMMA",
   },
 ];
 
 const SYSTEM_PRESETS = [
   {
-    label: "Creative Technologist",
+    label: "Grok Direct",
     prompt:
-      "You are DSGKX, an elite Creative Technologist and AI Architect. Your answers are mathematically precise, aesthetically uncompromising, and formatted in clean markdown.",
+      "You are Grok, an AI created by xAI. Be helpful, maximally truthful, humorous, and provide in-depth scientific and programming answers.",
   },
   {
     label: "Senior Engineer",
     prompt:
-      "You are a Senior Principal Engineer. Provide concise, production-ready code with clean error handling, architecture notes, and zero unnecessary fluff.",
+      "You are a Senior Principal Engineer. Provide concise, production-ready code with clean error handling, architecture notes, and zero fluff.",
   },
   {
-    label: "General Assistant",
-    prompt: "You are a helpful, direct, and intelligent AI assistant.",
+    label: "Creative Technologist",
+    prompt:
+      "You are DSGKX, an elite Creative Technologist. Your answers are mathematically precise, aesthetically uncompromising, and formatted in clean markdown.",
   },
 ];
 
 export default function PlaygroundPage() {
+  const [provider, setProvider] = useState<"xai" | "groq">("xai");
   const [apiKey, setApiKey] = useState<string>("");
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
-  const [model, setModel] = useState<string>("llama-3.3-70b-versatile");
+  const [model, setModel] = useState<string>("grok-2-latest");
   const [systemPrompt, setSystemPrompt] = useState<string>(
-    "You are DSGKX Neural Engine, a high-performance cognitive assistant. Respond with mathematical clarity, structured formatting, and deep technical depth."
+    "You are Grok, an AI with real-time understanding and witty, direct answers. Answer queries clearly and accurately."
   );
   const [isSystemOpen, setIsSystemOpen] = useState<boolean>(true);
   const [temperature, setTemperature] = useState<number>(0.7);
@@ -105,14 +134,12 @@ export default function PlaygroundPage() {
   const [topP, setTopP] = useState<number>(1.0);
   const [isStreaming, setIsStreaming] = useState<boolean>(true);
   const [isJsonMode, setIsJsonMode] = useState<boolean>(false);
-  const [reasoningEffort, setReasoningEffort] = useState<"low" | "medium" | "high">("medium");
 
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "msg-1",
       role: "user",
-      content:
-        "Explain how the scaled dot-product attention mechanism prevents exploding gradients in high-dimensional transformers.",
+      content: "Explain how large language models generate tokens step by step.",
     },
   ]);
   const [currentInput, setCurrentInput] = useState<string>("");
@@ -137,23 +164,51 @@ export default function PlaygroundPage() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load API Key from localStorage
+  // Load saved API Key from localStorage on mount
   useEffect(() => {
     const savedKey = localStorage.getItem("dsgkx_api_key");
+    const savedProvider = localStorage.getItem("dsgkx_provider") as "xai" | "groq" | null;
+
     if (savedKey) {
       setApiKey(savedKey);
-      // Auto-switch model if xAI key detected
-      if (savedKey.startsWith("xai-")) {
+      if (savedKey.startsWith("xai-") || savedProvider === "xai") {
+        setProvider("xai");
         setModel("grok-2-latest");
+      } else if (savedKey.startsWith("gsk_") || savedProvider === "groq") {
+        setProvider("groq");
+        setModel("llama-3.3-70b-versatile");
       }
     }
   }, []);
 
-  const handleApiKeyChange = (val: string) => {
-    setApiKey(val);
-    localStorage.setItem("dsgkx_api_key", val.trim());
-    if (val.trim().startsWith("xai-") && !model.startsWith("grok")) {
+  const handleProviderSwitch = (newProvider: "xai" | "groq") => {
+    setProvider(newProvider);
+    localStorage.setItem("dsgkx_provider", newProvider);
+    if (newProvider === "xai") {
       setModel("grok-2-latest");
+    } else {
+      setModel("llama-3.3-70b-versatile");
+    }
+  };
+
+  const handleApiKeyChange = (val: string) => {
+    const clean = val.trim();
+    setApiKey(clean);
+    localStorage.setItem("dsgkx_api_key", clean);
+
+    // Auto-detect provider based on key format
+    if (clean.startsWith("xai-")) {
+      setProvider("xai");
+      localStorage.setItem("dsgkx_provider", "xai");
+      if (!model.startsWith("grok")) {
+        setModel("grok-2-latest");
+      }
+    } else if (clean.startsWith("gsk_")) {
+      setProvider("groq");
+      localStorage.setItem("dsgkx_provider", "groq");
+      if (model.startsWith("grok")) {
+        setModel("llama-3.3-70b-versatile");
+      }
     }
   };
 
@@ -165,31 +220,30 @@ export default function PlaygroundPage() {
     scrollToBottom();
   }, [messages, streamingContent]);
 
-  // Determine provider from key or model
-  const detectedProvider: "groq" | "xai" | "demo" = apiKey.trim().startsWith("xai-") ||
-    model.startsWith("grok")
-    ? "xai"
-    : apiKey.trim()
-    ? "groq"
-    : "demo";
-
   // Execute inference request
-  const handleSubmit = async () => {
+  const handleSubmit = async (overridePrompt?: string) => {
     if (isLoading) return;
 
     let updatedMessages = [...messages];
-    if (currentInput.trim()) {
+    const textToSend = overridePrompt !== undefined ? overridePrompt : currentInput.trim();
+
+    if (textToSend) {
       updatedMessages.push({
         id: `msg-${Date.now()}`,
         role: "user",
-        content: currentInput.trim(),
+        content: textToSend,
       });
-      setCurrentInput("");
+      if (overridePrompt === undefined) {
+        setCurrentInput("");
+      }
     }
 
     if (updatedMessages.length === 0) return;
 
-    setMessages(updatedMessages);
+    // Filter out previous error messages before resubmitting
+    const validChatHistory = updatedMessages.filter((m) => !m.isError);
+
+    setMessages(validChatHistory);
     setIsLoading(true);
     setStreamingContent("");
 
@@ -201,12 +255,11 @@ export default function PlaygroundPage() {
     abortControllerRef.current = new AbortController();
 
     try {
-      // Assemble full payload with system message prepended if present
       const fullMessagesPayload = [
         ...(systemPrompt.trim()
           ? [{ role: "system", content: systemPrompt.trim() }]
           : []),
-        ...updatedMessages.map((m) => ({ role: m.role, content: m.content })),
+        ...validChatHistory.map((m) => ({ role: m.role, content: m.content })),
       ];
 
       const res = await fetch("/api/chat", {
@@ -214,7 +267,7 @@ export default function PlaygroundPage() {
         headers: { "Content-Type": "application/json" },
         signal: abortControllerRef.current.signal,
         body: JSON.stringify({
-          provider: detectedProvider,
+          provider,
           apiKey: apiKey.trim(),
           model,
           messages: fullMessagesPayload,
@@ -285,7 +338,6 @@ export default function PlaygroundPage() {
         ),
       });
 
-      // Commit finalized assistant message
       setMessages((prev) => [
         ...prev,
         {
@@ -302,12 +354,23 @@ export default function PlaygroundPage() {
     } catch (err: unknown) {
       if ((err as Error).name !== "AbortError") {
         const errorMsg = err instanceof Error ? err.message : "Inference failed";
+        const isModelMismatch =
+          errorMsg.toLowerCase().includes("does not exist") ||
+          errorMsg.toLowerCase().includes("access to it");
+
         setMessages((prev) => [
           ...prev,
           {
             id: `err-${Date.now()}`,
             role: "assistant",
-            content: `⚠ [DSGKX KERNEL ERROR]: ${errorMsg}\n\nTip: If you haven't entered an API key, check your Groq key at console.groq.com/keys or xAI key at console.x.ai.`,
+            isError: true,
+            content: `⚠ [DSGKX INFERENCE ERROR]: ${errorMsg}\n\n${
+              isModelMismatch
+                ? provider === "groq"
+                  ? "Tip: You are using the Groq provider. Click below to switch to 'xAI Grok' if you have an xAI Grok key!"
+                  : "Tip: You are using the xAI Grok provider. Make sure your model is set to 'grok-2-latest'!"
+                : "Check your API key in the right sidebar under PARAMETERS."
+            }`,
           },
         ]);
       }
@@ -353,10 +416,10 @@ export default function PlaygroundPage() {
   const getCurlSnippet = () => {
     const fullMessages = [
       ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-      ...messages.map((m) => ({ role: m.role, content: m.content })),
+      ...messages.filter((m) => !m.isError).map((m) => ({ role: m.role, content: m.content })),
     ];
     const endpoint =
-      detectedProvider === "xai"
+      provider === "xai"
         ? "https://api.x.ai/v1/chat/completions"
         : "https://api.groq.com/openai/v1/chat/completions";
 
@@ -374,7 +437,7 @@ export default function PlaygroundPage() {
   };
 
   const getPythonSnippet = () => {
-    const isXai = detectedProvider === "xai";
+    const isXai = provider === "xai";
     return `import os
 from openai import OpenAI
 
@@ -387,7 +450,7 @@ response = client.chat.completions.create(
     model="${model}",
     messages=[
         {"role": "system", "content": "${systemPrompt}"},
-${messages.map((m) => `        {"role": "${m.role}", "content": "${m.content.replace(/"/g, '\\"')}"},`).join("\n")}
+${messages.filter((m) => !m.isError).map((m) => `        {"role": "${m.role}", "content": "${m.content.replace(/"/g, '\\"')}"},`).join("\n")}
     ],
     temperature=${temperature},
     max_tokens=${maxTokens},
@@ -405,7 +468,7 @@ ${
   };
 
   const getNodeSnippet = () => {
-    const isXai = detectedProvider === "xai";
+    const isXai = provider === "xai";
     return `import OpenAI from "openai";
 
 const client = new OpenAI({
@@ -418,7 +481,7 @@ async function main() {
     model: "${model}",
     messages: [
       { role: "system", content: "${systemPrompt}" },
-${messages.map((m) => `      { role: "${m.role}", content: "${m.content.replace(/"/g, '\\"')}" },`).join("\n")}
+${messages.filter((m) => !m.isError).map((m) => `      { role: "${m.role}", content: "${m.content.replace(/"/g, '\\"')}" },`).join("\n")}
     ],
     temperature: ${temperature},
     max_tokens: ${maxTokens},
@@ -439,9 +502,11 @@ main();`;
     setTimeout(() => setCopyCodeSuccess(false), 2000);
   };
 
+  const currentModelsList = ALL_MODELS.filter((m) => m.provider === provider);
+
   return (
     <div className="min-h-screen bg-[#0B0B0C] text-[#F2EFE9] font-mono flex flex-col selection:bg-[#FF3B00] selection:text-[#0B0B0C]">
-      {/* Top Navigation Bar in Groq / Swiss Brutalist Style */}
+      {/* Top Header */}
       <header className="h-14 border-b border-[#F2EFE9]/15 bg-[#0B0B0C] px-4 sm:px-6 flex items-center justify-between z-30 select-none">
         <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center gap-2.5 group" data-cursor="HOME">
@@ -463,35 +528,46 @@ main();`;
           <span className="text-[#F2EFE9]/30 text-xs hidden sm:inline">/</span>
 
           <div className="hidden sm:flex items-center gap-2 text-xs text-[#F2EFE9]/60">
-            <span>Core</span>
+            <span>Neural Engine</span>
             <span>/</span>
-            <span className="text-[#F2EFE9] font-bold">Neural Playground</span>
+            <span className="text-[#F2EFE9] font-bold">Playground</span>
           </div>
         </div>
 
-        {/* Center Mode Switcher & Model Pill */}
+        {/* Center Active Provider & Model Pill */}
         <div className="flex items-center gap-3">
           <div className="flex items-center border border-[#F2EFE9]/20 bg-[#F2EFE9]/5 p-0.5 text-xs">
-            <button className="px-3 py-1 bg-[#FF3B00] text-[#0B0B0C] font-bold uppercase">
-              Chat
+            <button
+              onClick={() => handleProviderSwitch("xai")}
+              className={`px-3 py-1 font-bold uppercase transition-colors ${
+                provider === "xai"
+                  ? "bg-[#FF3B00] text-[#0B0B0C]"
+                  : "text-[#F2EFE9]/60 hover:text-[#F2EFE9]"
+              }`}
+            >
+              xAI Grok
             </button>
-            <button className="px-3 py-1 text-[#F2EFE9]/50 hover:text-[#F2EFE9] uppercase">
-              Studio
+            <button
+              onClick={() => handleProviderSwitch("groq")}
+              className={`px-3 py-1 font-bold uppercase transition-colors ${
+                provider === "groq"
+                  ? "bg-[#FF3B00] text-[#0B0B0C]"
+                  : "text-[#F2EFE9]/60 hover:text-[#F2EFE9]"
+              }`}
+            >
+              Groq LPU
             </button>
           </div>
 
           <div className="hidden md:flex items-center gap-2 text-xs border border-[#F2EFE9]/20 px-3 py-1.5 bg-[#0B0B0C]">
             <span className="w-2 h-2 bg-[#FF3B00] animate-pulse" />
             <span className="text-[#F2EFE9] font-bold truncate max-w-[180px]">
-              {MODELS.find((m) => m.id === model)?.name || model}
-            </span>
-            <span className="text-[10px] text-[#FF3B00] px-1 bg-[#FF3B00]/10">
-              {MODELS.find((m) => m.id === model)?.badge}
+              {ALL_MODELS.find((m) => m.id === model)?.name || model}
             </span>
           </div>
         </div>
 
-        {/* Right Utility Buttons */}
+        {/* Right Buttons */}
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsCodeModalOpen(true)}
@@ -512,11 +588,11 @@ main();`;
         </div>
       </header>
 
-      {/* Main Split Layout: Left Chat + Right Parameters Sidebar */}
+      {/* Main Workspace Layout */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Left Chat Area */}
         <main className="flex-1 flex flex-col justify-between overflow-y-auto border-r border-[#F2EFE9]/15">
-          {/* Top Collapsible System Message */}
+          {/* System Instructions Header */}
           <div className="border-b border-[#F2EFE9]/15 bg-[#0B0B0C]">
             <div className="px-6 py-2.5 flex items-center justify-between text-xs text-[#F2EFE9]/50 border-b border-[#F2EFE9]/10">
               <button
@@ -524,7 +600,7 @@ main();`;
                 className="flex items-center gap-2 text-[#FF3B00] font-bold uppercase hover:text-[#F2EFE9]"
               >
                 <span>{isSystemOpen ? "▼" : "▶"}</span>
-                <span>SYSTEM INSTRUCTIONS (OPTIONAL)</span>
+                <span>SYSTEM INSTRUCTIONS</span>
               </button>
 
               <div className="flex items-center gap-2">
@@ -545,7 +621,7 @@ main();`;
                 <textarea
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
-                  placeholder="Enter system prompt (e.g. You are a helpful AI assistant)..."
+                  placeholder="Enter system prompt (e.g. You are Grok, an AI created by xAI)..."
                   rows={2}
                   className="w-full bg-[#F2EFE9]/5 border border-[#F2EFE9]/20 p-3 text-xs md:text-sm text-[#F2EFE9] focus:outline-none focus:border-[#FF3B00] transition-colors font-mono resize-y"
                 />
@@ -553,7 +629,7 @@ main();`;
             )}
           </div>
 
-          {/* Messages Stream Container */}
+          {/* Message Thread */}
           <div className="flex-1 p-4 sm:p-8 space-y-6 overflow-y-auto">
             {messages.length === 0 && (
               <div className="h-64 flex flex-col items-center justify-center text-center font-mono space-y-3">
@@ -561,28 +637,34 @@ main();`;
                   DSGKX Neural Sandbox
                 </div>
                 <p className="text-xs text-[#F2EFE9]/60 max-w-md">
-                  Type your query below or select a template to initiate low-latency inference on Groq LPUs or xAI Grok.
+                  Active Provider:{" "}
+                  <span className="text-[#FF3B00] font-bold">
+                    {provider === "xai" ? "xAI Grok" : "Groq LPU"}
+                  </span>
+                  . Enter your message below to stream completions.
                 </p>
-                <button
-                  onClick={() =>
-                    setCurrentInput(
-                      "Write a high-performance Python matrix multiplication kernel using Triton."
-                    )
-                  }
-                  className="px-3 py-1.5 border border-[#FF3B00] text-xs text-[#FF3B00] hover:bg-[#FF3B00] hover:text-[#0B0B0C] transition-colors"
-                >
-                  Try: &quot;Triton Matrix Multiplication&quot; →
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleSubmit("How far is the Moon from Earth?")}
+                    className="px-3 py-1.5 border border-[#FF3B00] text-xs text-[#FF3B00] hover:bg-[#FF3B00] hover:text-[#0B0B0C] transition-colors"
+                  >
+                    Try: &quot;How far is the Moon?&quot; →
+                  </button>
+                </div>
               </div>
             )}
 
             {messages.map((msg, index) => {
               const isUser = msg.role === "user";
+              const isError = msg.isError;
+
               return (
                 <div
                   key={msg.id || index}
                   className={`border p-4 sm:p-6 relative ${
-                    isUser
+                    isError
+                      ? "border-red-500 bg-red-950/20"
+                      : isUser
                       ? "border-[#F2EFE9]/20 bg-[#F2EFE9]/5"
                       : "border-[#FF3B00]/40 bg-[#0B0B0C] shadow-[0_0_20px_rgba(255,59,0,0.04)]"
                   }`}
@@ -592,15 +674,27 @@ main();`;
                     <div className="flex items-center gap-2">
                       <span
                         className={`w-2 h-2 ${
-                          isUser ? "bg-[#F2EFE9]" : "bg-[#FF3B00] animate-pulse"
+                          isError
+                            ? "bg-red-500"
+                            : isUser
+                            ? "bg-[#F2EFE9]"
+                            : "bg-[#FF3B00] animate-pulse"
                         }`}
                       />
                       <span
                         className={`font-bold tracking-wider ${
-                          isUser ? "text-[#F2EFE9]" : "text-[#FF3B00]"
+                          isError
+                            ? "text-red-400"
+                            : isUser
+                            ? "text-[#F2EFE9]"
+                            : "text-[#FF3B00]"
                         }`}
                       >
-                        {isUser ? "USER" : `ASSISTANT // ${model.toUpperCase()}`}
+                        {isError
+                          ? "INFERENCE ERROR"
+                          : isUser
+                          ? "USER"
+                          : `ASSISTANT // ${model.toUpperCase()}`}
                       </span>
                     </div>
 
@@ -615,23 +709,50 @@ main();`;
                     )}
                   </div>
 
-                  {/* Message Content */}
+                  {/* Content */}
                   <div className="font-mono text-xs sm:text-sm text-[#F2EFE9] leading-relaxed whitespace-pre-wrap">
                     {msg.content}
                   </div>
+
+                  {/* 1-Click Error Recovery Button if model mismatch */}
+                  {isError && (
+                    <div className="mt-4 pt-3 border-t border-red-500/30 flex flex-wrap gap-2">
+                      {provider === "groq" ? (
+                        <button
+                          onClick={() => {
+                            handleProviderSwitch("xai");
+                            handleSubmit("How far is the moon?");
+                          }}
+                          className="px-3 py-1.5 bg-[#FF3B00] text-[#0B0B0C] font-bold text-xs uppercase hover:bg-white transition-colors"
+                        >
+                          👉 Switch to xAI Grok (grok-2-latest) &amp; Retry
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setModel("grok-2-latest");
+                            handleSubmit("How far is the moon?");
+                          }}
+                          className="px-3 py-1.5 bg-[#FF3B00] text-[#0B0B0C] font-bold text-xs uppercase hover:bg-white transition-colors"
+                        >
+                          👉 Set Model to grok-2-latest &amp; Retry
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
 
-            {/* Live Streaming Message Bubble */}
+            {/* Live Streaming Bubble */}
             {isLoading && (
               <div className="border border-[#FF3B00] bg-[#FF3B00]/5 p-4 sm:p-6 relative">
                 <div className="flex justify-between items-center text-[10px] font-mono border-b border-[#FF3B00]/20 pb-2 mb-3 text-[#FF3B00]">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-[#FF3B00] animate-ping" />
-                    <span className="font-bold">STREAMING FROM DSGKX // {model}</span>
+                    <span className="font-bold">STREAMING FROM {model.toUpperCase()}</span>
                   </div>
-                  <span className="font-bold">INFERENCE IN PROGRESS...</span>
+                  <span className="font-bold">INFERENCE ACTIVE...</span>
                 </div>
 
                 <div className="font-mono text-xs sm:text-sm text-[#F2EFE9] leading-relaxed whitespace-pre-wrap">
@@ -644,7 +765,7 @@ main();`;
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Bottom Action & Input Ribbon */}
+          {/* Bottom Action Ribbon */}
           <div className="border-t border-[#F2EFE9]/15 bg-[#0B0B0C] p-4 sm:p-6 space-y-3">
             <div className="flex items-center justify-between text-xs font-mono text-[#F2EFE9]/40">
               <div className="flex items-center gap-3">
@@ -673,13 +794,12 @@ main();`;
                 value={currentInput}
                 onChange={(e) => setCurrentInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Enter user message (e.g. Analyze the mathematical derivation of cross-entropy loss)..."
+                placeholder={`Ask ${model}... (e.g. How far is the Moon from Earth?)`}
                 rows={3}
                 disabled={isLoading}
                 className="w-full bg-[#F2EFE9]/5 border-2 border-[#F2EFE9]/20 p-4 text-xs sm:text-sm text-[#F2EFE9] focus:outline-none focus:border-[#FF3B00] transition-colors font-mono resize-none disabled:opacity-50"
               />
 
-              {/* Submit / Stop Button */}
               <div className="absolute bottom-4 right-4 flex items-center gap-2">
                 {isLoading ? (
                   <button
@@ -691,7 +811,7 @@ main();`;
                   </button>
                 ) : (
                   <button
-                    onClick={handleSubmit}
+                    onClick={() => handleSubmit()}
                     data-cursor="RUN"
                     className="px-5 py-2.5 bg-[#FF3B00] text-[#0B0B0C] font-bold text-xs uppercase tracking-wider hover:bg-[#F2EFE9] transition-colors flex items-center gap-2"
                   >
@@ -704,7 +824,7 @@ main();`;
           </div>
         </main>
 
-        {/* Right Sidebar: PARAMETERS Panel (Identical to Groq Console in Swiss Style) */}
+        {/* Right Sidebar: PARAMETERS Panel */}
         <aside className="w-full lg:w-80 xl:w-96 bg-[#0B0B0C] border-t lg:border-t-0 border-[#F2EFE9]/15 p-6 overflow-y-auto space-y-6 select-none">
           <div className="flex justify-between items-center text-xs font-mono border-b border-[#F2EFE9]/15 pb-3">
             <span className="text-[#FF3B00] font-bold uppercase tracking-wider">
@@ -713,11 +833,40 @@ main();`;
             <span className="text-[#F2EFE9]/40 text-[10px]">DSGKX // INFERENCE</span>
           </div>
 
-          {/* API Key Box */}
+          {/* 1. Provider Selector Switch */}
+          <div className="space-y-1.5 font-mono text-xs">
+            <label className="text-[#F2EFE9]/70 block text-[10px] uppercase">
+              TARGET PROVIDER
+            </label>
+            <div className="grid grid-cols-2 gap-1 border border-[#F2EFE9]/20 p-1">
+              <button
+                onClick={() => handleProviderSwitch("xai")}
+                className={`py-2 text-center text-xs uppercase font-bold transition-all ${
+                  provider === "xai"
+                    ? "bg-[#FF3B00] text-[#0B0B0C]"
+                    : "text-[#F2EFE9]/50 hover:text-[#F2EFE9]"
+                }`}
+              >
+                🧠 xAI Grok
+              </button>
+              <button
+                onClick={() => handleProviderSwitch("groq")}
+                className={`py-2 text-center text-xs uppercase font-bold transition-all ${
+                  provider === "groq"
+                    ? "bg-[#FF3B00] text-[#0B0B0C]"
+                    : "text-[#F2EFE9]/50 hover:text-[#F2EFE9]"
+                }`}
+              >
+                ⚡ Groq LPU
+              </button>
+            </div>
+          </div>
+
+          {/* 2. API Key Box */}
           <div className="border border-[#F2EFE9]/20 p-4 bg-[#F2EFE9]/5 space-y-2">
             <div className="flex justify-between items-center text-[10px] font-mono">
               <span className="text-[#FF3B00] font-bold uppercase">
-                API KEY (GROQ OR XAI)
+                {provider === "xai" ? "XAI GROK API KEY" : "GROQ API KEY"}
               </span>
               <button
                 onClick={() => setShowApiKey(!showApiKey)}
@@ -731,21 +880,25 @@ main();`;
               type={showApiKey ? "text" : "password"}
               value={apiKey}
               onChange={(e) => handleApiKeyChange(e.target.value)}
-              placeholder="gsk_... or xai-..."
+              placeholder={
+                provider === "xai"
+                  ? "xai-... (Enter your xAI Grok Key)"
+                  : "gsk_... (Enter your Groq Key)"
+              }
               className="w-full bg-[#0B0B0C] border border-[#F2EFE9]/30 p-2 text-xs text-[#F2EFE9] font-mono focus:outline-none focus:border-[#FF3B00]"
             />
 
             <div className="text-[10px] text-[#F2EFE9]/50 flex justify-between pt-1">
               <span>
-                {detectedProvider === "xai"
-                  ? "✓ xAI Grok Key Active"
-                  : detectedProvider === "groq"
-                  ? "✓ Groq Key Active"
+                {apiKey
+                  ? provider === "xai"
+                    ? "✓ xAI Grok Key Stored"
+                    : "✓ Groq Key Stored"
                   : "Demo Simulation Mode"}
               </span>
               <a
                 href={
-                  detectedProvider === "xai"
+                  provider === "xai"
                     ? "https://console.x.ai"
                     : "https://console.groq.com/keys"
                 }
@@ -753,42 +906,33 @@ main();`;
                 rel="noreferrer"
                 className="text-[#FF3B00] underline"
               >
-                Get Key ↗
+                Get {provider === "xai" ? "xAI" : "Groq"} Key ↗
               </a>
             </div>
           </div>
 
-          {/* Model Selector Dropdown */}
+          {/* 3. Model Selector Dropdown */}
           <div className="space-y-1.5 font-mono text-xs">
             <label className="text-[#F2EFE9]/70 flex justify-between">
               <span>MODEL</span>
               <span className="text-[10px] text-[#FF3B00]">
-                {MODELS.find((m) => m.id === model)?.speed}
+                {ALL_MODELS.find((m) => m.id === model)?.speed}
               </span>
             </label>
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              className="w-full bg-[#0B0B0C] border border-[#F2EFE9]/30 p-2.5 text-xs text-[#F2EFE9] focus:outline-none focus:border-[#FF3B00]"
+              className="w-full bg-[#0B0B0C] border-2 border-[#F2EFE9]/30 p-2.5 text-xs text-[#F2EFE9] font-bold focus:outline-none focus:border-[#FF3B00]"
             >
-              <optgroup label="Groq LPUs (Ultra Low Latency)">
-                {MODELS.filter((m) => m.provider === "groq").map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.context})
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="xAI Grok Models">
-                {MODELS.filter((m) => m.provider === "xai").map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.context})
-                  </option>
-                ))}
-              </optgroup>
+              {currentModelsList.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({m.context})
+                </option>
+              ))}
             </select>
           </div>
 
-          {/* Temperature Slider */}
+          {/* 4. Temperature Slider */}
           <div className="space-y-1.5 font-mono text-xs">
             <div className="flex justify-between items-center">
               <span className="text-[#F2EFE9]/70">Temperature</span>
@@ -818,7 +962,7 @@ main();`;
             </div>
           </div>
 
-          {/* Max Completion Tokens Slider */}
+          {/* 5. Max Completion Tokens */}
           <div className="space-y-1.5 font-mono text-xs">
             <div className="flex justify-between items-center">
               <span className="text-[#F2EFE9]/70">Max Completion Tokens</span>
@@ -843,7 +987,7 @@ main();`;
             />
           </div>
 
-          {/* Top P Slider */}
+          {/* 6. Top P */}
           <div className="space-y-1.5 font-mono text-xs">
             <div className="flex justify-between items-center">
               <span className="text-[#F2EFE9]/70">Top P (Nucleus)</span>
@@ -860,27 +1004,7 @@ main();`;
             />
           </div>
 
-          {/* Reasoning Effort (For DeepSeek R1 / Grok) */}
-          <div className="space-y-1.5 font-mono text-xs">
-            <label className="text-[#F2EFE9]/70 block">Reasoning Effort</label>
-            <div className="grid grid-cols-3 gap-1 border border-[#F2EFE9]/20 p-1">
-              {(["low", "medium", "high"] as const).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setReasoningEffort(r)}
-                  className={`py-1 text-center text-xs uppercase font-bold transition-colors ${
-                    reasoningEffort === r
-                      ? "bg-[#FF3B00] text-[#0B0B0C]"
-                      : "text-[#F2EFE9]/50 hover:text-[#F2EFE9]"
-                  }`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Toggles (Stream, JSON Mode) */}
+          {/* 7. Stream Toggle */}
           <div className="space-y-3 pt-2 border-t border-[#F2EFE9]/10 font-mono text-xs">
             <div className="flex justify-between items-center">
               <span className="text-[#F2EFE9]/70">Stream Response</span>
@@ -919,11 +1043,11 @@ main();`;
             </div>
           </div>
 
-          {/* Live Performance Telemetry Gauge */}
+          {/* 8. Live Telemetry */}
           <div className="border border-[#F2EFE9]/20 p-4 bg-[#0B0B0C] space-y-2 font-mono text-xs">
             <div className="text-[10px] text-[#FF3B00] font-bold uppercase border-b border-[#F2EFE9]/10 pb-1 flex justify-between">
               <span>LIVE TELEMETRY</span>
-              <span>DSGKX-LPU</span>
+              <span>{provider.toUpperCase()}</span>
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
               <div>
@@ -944,7 +1068,9 @@ main();`;
               </div>
               <div>
                 <span className="text-[#F2EFE9]/40 block text-[9px]">COMPLETION</span>
-                <span className="text-[#F2EFE9] font-bold">{telemetry.completionTokens || "--"}</span>
+                <span className="text-[#F2EFE9] font-bold">
+                  {telemetry.completionTokens || "--"}
+                </span>
               </div>
             </div>
           </div>
@@ -957,7 +1083,7 @@ main();`;
           <div className="w-full max-w-2xl border-2 border-[#F2EFE9]/30 bg-[#0B0B0C] p-6 space-y-4 swiss-grid shadow-[0_0_50px_rgba(255,59,0,0.2)]">
             <div className="flex justify-between items-center border-b border-[#F2EFE9]/15 pb-3">
               <span className="font-bold text-sm text-[#FF3B00]">
-                [EXPORT RUNTIME CODE]
+                [EXPORT RUNTIME CODE: {provider.toUpperCase()}]
               </span>
               <button
                 onClick={() => setIsCodeModalOpen(false)}
@@ -967,7 +1093,6 @@ main();`;
               </button>
             </div>
 
-            {/* Code Tabs */}
             <div className="flex gap-2 text-xs font-mono border-b border-[#F2EFE9]/10 pb-2">
               {(["curl", "python", "node"] as const).map((t) => (
                 <button
@@ -984,7 +1109,6 @@ main();`;
               ))}
             </div>
 
-            {/* Code Snippet Box */}
             <div className="relative">
               <pre className="p-4 bg-[#F2EFE9]/5 border border-[#F2EFE9]/15 text-xs text-[#F2EFE9] overflow-x-auto max-h-80 font-mono">
                 <code>
