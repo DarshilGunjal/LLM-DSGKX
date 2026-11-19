@@ -67,7 +67,7 @@ export default function Navbar() {
           </Link>
 
           <span className="hidden lg:inline-block px-2 py-0.5 text-[10px] font-mono border border-[#F2EFE9]/20 text-[#F2EFE9]/60">
-            VASWANI_2017
+            DARSHIL1812
           </span>
         </div>
 
