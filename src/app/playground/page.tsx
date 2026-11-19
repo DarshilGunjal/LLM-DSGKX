@@ -16,54 +16,18 @@ interface Message {
   };
 }
 
-interface ModelOption {
+interface ModelInfo {
   id: string;
   name: string;
-  provider: "xai" | "groq";
   context: string;
   speed: string;
   badge: string;
 }
 
-const ALL_MODELS: ModelOption[] = [
-  // xAI Grok Models
-  {
-    id: "grok-2-latest",
-    name: "xAI Grok-2 Latest",
-    provider: "xai",
-    context: "128k context",
-    speed: "~160 tok/s",
-    badge: "RECOMMENDED",
-  },
-  {
-    id: "grok-2",
-    name: "xAI Grok-2",
-    provider: "xai",
-    context: "128k context",
-    speed: "~150 tok/s",
-    badge: "OFFICIAL",
-  },
-  {
-    id: "grok-beta",
-    name: "xAI Grok Beta",
-    provider: "xai",
-    context: "128k context",
-    speed: "~170 tok/s",
-    badge: "BETA",
-  },
-  {
-    id: "grok-vision-beta",
-    name: "xAI Grok Vision Beta",
-    provider: "xai",
-    context: "128k context",
-    speed: "~140 tok/s",
-    badge: "VISION",
-  },
-  // Groq LPU Models
+const DEFAULT_GROQ_MODELS: ModelInfo[] = [
   {
     id: "llama-3.3-70b-versatile",
     name: "Llama 3.3 70B Versatile",
-    provider: "groq",
     context: "128k context",
     speed: "~350 tok/s",
     badge: "RECOMMENDED",
@@ -71,15 +35,20 @@ const ALL_MODELS: ModelOption[] = [
   {
     id: "llama-3.1-8b-instant",
     name: "Llama 3.1 8B Instant",
-    provider: "groq",
     context: "128k context",
     speed: "~850 tok/s",
     badge: "ULTRA FAST",
   },
   {
+    id: "openai/gpt-oss-120b",
+    name: "OpenAI GPT-OSS 120B",
+    context: "128k context",
+    speed: "~200 tok/s",
+    badge: "GROQ PREVIEW",
+  },
+  {
     id: "deepseek-r1-distill-llama-70b",
     name: "DeepSeek R1 Distill 70B",
-    provider: "groq",
     context: "128k context",
     speed: "~300 tok/s",
     badge: "REASONING",
@@ -87,7 +56,6 @@ const ALL_MODELS: ModelOption[] = [
   {
     id: "mixtral-8x7b-32768",
     name: "Mixtral 8x7B MoE",
-    provider: "groq",
     context: "32k context",
     speed: "~550 tok/s",
     badge: "MOE",
@@ -95,23 +63,29 @@ const ALL_MODELS: ModelOption[] = [
   {
     id: "gemma2-9b-it",
     name: "Google Gemma 2 9B",
-    provider: "groq",
     context: "8k context",
-    speed: "~700 tok/s",
+    speed: "~750 tok/s",
     badge: "GEMMA",
+  },
+  {
+    id: "llama-3.1-70b-versatile",
+    name: "Llama 3.1 70B Versatile",
+    context: "128k context",
+    speed: "~300 tok/s",
+    badge: "VERSATILE",
   },
 ];
 
 const SYSTEM_PRESETS = [
   {
-    label: "Grok Direct",
+    label: "Direct & Concise",
     prompt:
-      "You are Grok, an AI created by xAI. Be helpful, maximally truthful, humorous, and provide in-depth scientific and programming answers.",
+      "You are a helpful, direct, and concise AI assistant powered by Groq LPUs. Provide clear, accurate answers with clean formatting and no unnecessary filler.",
   },
   {
-    label: "Senior Engineer",
+    label: "Senior Software Engineer",
     prompt:
-      "You are a Senior Principal Engineer. Provide concise, production-ready code with clean error handling, architecture notes, and zero fluff.",
+      "You are a Senior Principal Engineer. Provide production-ready code with clean architecture, proper error handling, algorithmic complexity analysis, and zero fluff.",
   },
   {
     label: "Creative Technologist",
@@ -121,25 +95,32 @@ const SYSTEM_PRESETS = [
 ];
 
 export default function PlaygroundPage() {
-  const [provider, setProvider] = useState<"xai" | "groq">("xai");
   const [apiKey, setApiKey] = useState<string>("");
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
-  const [model, setModel] = useState<string>("grok-2-latest");
+  const [model, setModel] = useState<string>("llama-3.3-70b-versatile");
+  const [customModelInput, setCustomModelInput] = useState<string>("");
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>(DEFAULT_GROQ_MODELS);
+  const [isFetchingModels, setIsFetchingModels] = useState<boolean>(false);
+
+  // Playground Parameter States (matching Groq console screenshot)
   const [systemPrompt, setSystemPrompt] = useState<string>(
-    "You are Grok, an AI with real-time understanding and witty, direct answers. Answer queries clearly and accurately."
+    "You are a helpful, intelligent AI assistant running on ultra-fast Groq LPU inference."
   );
   const [isSystemOpen, setIsSystemOpen] = useState<boolean>(true);
-  const [temperature, setTemperature] = useState<number>(0.7);
+  const [temperature, setTemperature] = useState<number>(1.0);
   const [maxTokens, setMaxTokens] = useState<number>(2048);
-  const [topP, setTopP] = useState<number>(1.0);
+  const [reasoningEffort, setReasoningEffort] = useState<"none" | "low" | "medium" | "high">("medium");
   const [isStreaming, setIsStreaming] = useState<boolean>(true);
   const [isJsonMode, setIsJsonMode] = useState<boolean>(false);
+  const [browserSearch, setBrowserSearch] = useState<boolean>(false);
+  const [codeInterpreter, setCodeInterpreter] = useState<boolean>(false);
 
+  // Message & Stream States
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "msg-1",
       role: "user",
-      content: "Explain how large language models generate tokens step by step.",
+      content: "Explain how Groq LPUs achieve 500+ tokens per second compared to conventional GPUs.",
     },
   ]);
   const [currentInput, setCurrentInput] = useState<string>("");
@@ -157,58 +138,68 @@ export default function PlaygroundPage() {
     promptTokens: 0,
   });
 
+  // Code Export Modal
   const [isCodeModalOpen, setIsCodeModalOpen] = useState<boolean>(false);
-  const [codeTab, setCodeTab] = useState<"curl" | "python" | "node">("curl");
+  const [codeTab, setCodeTab] = useState<"python" | "curl" | "node">("python");
   const [copyCodeSuccess, setCopyCodeSuccess] = useState<boolean>(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load saved API Key from localStorage on mount
+  // Load Groq API key from localStorage on mount
   useEffect(() => {
-    const savedKey = localStorage.getItem("dsgkx_api_key");
-    const savedProvider = localStorage.getItem("dsgkx_provider") as "xai" | "groq" | null;
-
+    const savedKey =
+      localStorage.getItem("dsgkx_groq_api_key") ||
+      localStorage.getItem("dsgkx_api_key");
     if (savedKey) {
       setApiKey(savedKey);
-      if (savedKey.startsWith("xai-") || savedProvider === "xai") {
-        setProvider("xai");
-        setModel("grok-2-latest");
-      } else if (savedKey.startsWith("gsk_") || savedProvider === "groq") {
-        setProvider("groq");
-        setModel("llama-3.3-70b-versatile");
-      }
+      fetchLiveGroqModels(savedKey);
     }
   }, []);
-
-  const handleProviderSwitch = (newProvider: "xai" | "groq") => {
-    setProvider(newProvider);
-    localStorage.setItem("dsgkx_provider", newProvider);
-    if (newProvider === "xai") {
-      setModel("grok-2-latest");
-    } else {
-      setModel("llama-3.3-70b-versatile");
-    }
-  };
 
   const handleApiKeyChange = (val: string) => {
     const clean = val.trim();
     setApiKey(clean);
-    localStorage.setItem("dsgkx_api_key", clean);
+    localStorage.setItem("dsgkx_groq_api_key", clean);
+    if (clean.length > 10) {
+      fetchLiveGroqModels(clean);
+    }
+  };
 
-    // Auto-detect provider based on key format
-    if (clean.startsWith("xai-")) {
-      setProvider("xai");
-      localStorage.setItem("dsgkx_provider", "xai");
-      if (!model.startsWith("grok")) {
-        setModel("grok-2-latest");
+  // Fetch live active models from Groq API
+  const fetchLiveGroqModels = async (key: string) => {
+    if (!key) return;
+    setIsFetchingModels(true);
+    try {
+      const res = await fetch("/api/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: key }),
+      });
+      const data = await res.json();
+      if (data.models && data.models.length > 0) {
+        const liveList: ModelInfo[] = data.models.map((id: string) => {
+          const known = DEFAULT_GROQ_MODELS.find((m) => m.id === id);
+          return (
+            known || {
+              id,
+              name: id,
+              context: "128k context",
+              speed: "LPU Speed",
+              badge: "ACTIVE",
+            }
+          );
+        });
+        setAvailableModels(liveList);
+        // If current model isn't in account's models, switch to first available
+        if (!data.models.includes(model)) {
+          setModel(data.models[0]);
+        }
       }
-    } else if (clean.startsWith("gsk_")) {
-      setProvider("groq");
-      localStorage.setItem("dsgkx_provider", "groq");
-      if (model.startsWith("grok")) {
-        setModel("llama-3.3-70b-versatile");
-      }
+    } catch {
+      // Keep default models on network failure
+    } finally {
+      setIsFetchingModels(false);
     }
   };
 
@@ -220,7 +211,7 @@ export default function PlaygroundPage() {
     scrollToBottom();
   }, [messages, streamingContent]);
 
-  // Execute inference request
+  // Execute inference request against Groq
   const handleSubmit = async (overridePrompt?: string) => {
     if (isLoading) return;
 
@@ -240,7 +231,7 @@ export default function PlaygroundPage() {
 
     if (updatedMessages.length === 0) return;
 
-    // Filter out previous error messages before resubmitting
+    // Filter out previous error cards
     const validChatHistory = updatedMessages.filter((m) => !m.isError);
 
     setMessages(validChatHistory);
@@ -267,14 +258,14 @@ export default function PlaygroundPage() {
         headers: { "Content-Type": "application/json" },
         signal: abortControllerRef.current.signal,
         body: JSON.stringify({
-          provider,
           apiKey: apiKey.trim(),
           model,
           messages: fullMessagesPayload,
           temperature,
           max_tokens: maxTokens,
-          top_p: topP,
+          top_p: 1.0,
           stream: isStreaming,
+          reasoning_effort: reasoningEffort !== "none" ? reasoningEffort : undefined,
         }),
       });
 
@@ -314,7 +305,7 @@ export default function PlaygroundPage() {
                   setStreamingContent(accumulatedText);
                 }
               } catch {
-                // Ignore chunk parse anomalies
+                // Ignore parse glitches
               }
             }
           }
@@ -354,7 +345,7 @@ export default function PlaygroundPage() {
     } catch (err: unknown) {
       if ((err as Error).name !== "AbortError") {
         const errorMsg = err instanceof Error ? err.message : "Inference failed";
-        const isModelMismatch =
+        const isModelAccessError =
           errorMsg.toLowerCase().includes("does not exist") ||
           errorMsg.toLowerCase().includes("access to it");
 
@@ -364,12 +355,10 @@ export default function PlaygroundPage() {
             id: `err-${Date.now()}`,
             role: "assistant",
             isError: true,
-            content: `⚠ [DSGKX INFERENCE ERROR]: ${errorMsg}\n\n${
-              isModelMismatch
-                ? provider === "groq"
-                  ? "Tip: You are using the Groq provider. Click below to switch to 'xAI Grok' if you have an xAI Grok key!"
-                  : "Tip: You are using the xAI Grok provider. Make sure your model is set to 'grok-2-latest'!"
-                : "Check your API key in the right sidebar under PARAMETERS."
+            content: `⚠ [GROQ LPU API ERROR]: ${errorMsg}\n\n${
+              isModelAccessError
+                ? "Notice: Your Groq API key might not have access to this specific model ID. Click below to switch to 'llama-3.3-70b-versatile' or sync your active Groq models!"
+                : "Please verify your Groq API key (starts with 'gsk_') in the Parameters sidebar."
             }`,
           },
         ]);
@@ -412,72 +401,61 @@ export default function PlaygroundPage() {
     }
   };
 
-  // Generate code snippets
+  // Code Export Snippets for Groq
+  const getPythonSnippet = () => {
+    const fullMessages = [
+      ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+      ...messages.filter((m) => !m.isError).map((m) => ({ role: m.role, content: m.content })),
+    ];
+
+    return `import os
+from groq import Groq
+
+client = Groq(
+    api_key=os.environ.get("GROQ_API_KEY", "${apiKey || "gsk_..."}"),
+)
+
+completion = client.chat.completions.create(
+    model="${model}",
+    messages=${JSON.stringify(fullMessages, null, 4)},
+    temperature=${temperature},
+    max_tokens=${maxTokens},
+    stream=${isStreaming},
+)
+
+${
+  isStreaming
+    ? `for chunk in completion:
+    print(chunk.choices[0].delta.content or "", end="", flush=True)`
+    : `print(completion.choices[0].message.content)`
+}`;
+  };
+
   const getCurlSnippet = () => {
     const fullMessages = [
       ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
       ...messages.filter((m) => !m.isError).map((m) => ({ role: m.role, content: m.content })),
     ];
-    const endpoint =
-      provider === "xai"
-        ? "https://api.x.ai/v1/chat/completions"
-        : "https://api.groq.com/openai/v1/chat/completions";
 
-    return `curl -X POST "${endpoint}" \\
-  -H "Authorization: Bearer ${apiKey || "$API_KEY"}" \\
+    return `curl -X POST "https://api.groq.com/openai/v1/chat/completions" \\
+  -H "Authorization: Bearer ${apiKey || "$GROQ_API_KEY"}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "${model}",
     "messages": ${JSON.stringify(fullMessages, null, 4)},
     "temperature": ${temperature},
     "max_tokens": ${maxTokens},
-    "top_p": ${topP},
     "stream": ${isStreaming}
   }'`;
   };
 
-  const getPythonSnippet = () => {
-    const isXai = provider === "xai";
-    return `import os
-from openai import OpenAI
-
-client = OpenAI(
-    api_key=os.environ.get("${isXai ? "XAI_API_KEY" : "GROQ_API_KEY"}", "${apiKey || "YOUR_KEY"}"),
-    base_url="${isXai ? "https://api.x.ai/v1" : "https://api.groq.com/openai/v1"}",
-)
-
-response = client.chat.completions.create(
-    model="${model}",
-    messages=[
-        {"role": "system", "content": "${systemPrompt}"},
-${messages.filter((m) => !m.isError).map((m) => `        {"role": "${m.role}", "content": "${m.content.replace(/"/g, '\\"')}"},`).join("\n")}
-    ],
-    temperature=${temperature},
-    max_tokens=${maxTokens},
-    top_p=${topP},
-    stream=${isStreaming},
-)
-
-${
-  isStreaming
-    ? `for chunk in response:
-    if chunk.choices[0].delta.content:
-        print(chunk.choices[0].delta.content, end="", flush=True)`
-    : `print(response.choices[0].message.content)`
-}`;
-  };
-
   const getNodeSnippet = () => {
-    const isXai = provider === "xai";
-    return `import OpenAI from "openai";
+    return `import Groq from "groq-sdk";
 
-const client = new OpenAI({
-  apiKey: process.env.${isXai ? "XAI_API_KEY" : "GROQ_API_KEY"} || "${apiKey || "YOUR_KEY"}",
-  baseURL: "${isXai ? "https://api.x.ai/v1" : "https://api.groq.com/openai/v1"}",
-});
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "${apiKey || "gsk_..."}" });
 
 async function main() {
-  const stream = await client.chat.completions.create({
+  const chatCompletion = await groq.chat.completions.create({
     model: "${model}",
     messages: [
       { role: "system", content: "${systemPrompt}" },
@@ -488,7 +466,7 @@ ${messages.filter((m) => !m.isError).map((m) => `      { role: "${m.role}", cont
     stream: true,
   });
 
-  for await (const chunk of stream) {
+  for await (const chunk of chatCompletion) {
     process.stdout.write(chunk.choices[0]?.delta?.content || "");
   }
 }
@@ -502,11 +480,9 @@ main();`;
     setTimeout(() => setCopyCodeSuccess(false), 2000);
   };
 
-  const currentModelsList = ALL_MODELS.filter((m) => m.provider === provider);
-
   return (
     <div className="min-h-screen bg-[#0B0B0C] text-[#F2EFE9] font-mono flex flex-col selection:bg-[#FF3B00] selection:text-[#0B0B0C]">
-      {/* Top Header */}
+      {/* Top Header: Matching Groq Console in Swiss Neo-Brutalist Aesthetic */}
       <header className="h-14 border-b border-[#F2EFE9]/15 bg-[#0B0B0C] px-4 sm:px-6 flex items-center justify-between z-30 select-none">
         <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center gap-2.5 group" data-cursor="HOME">
@@ -521,53 +497,44 @@ main();`;
               />
             </div>
             <span className="font-bold text-sm tracking-wider text-[#F2EFE9] group-hover:text-[#FF3B00] transition-colors">
-              DSGKX
+              DSGKX // GROQ
             </span>
           </Link>
 
           <span className="text-[#F2EFE9]/30 text-xs hidden sm:inline">/</span>
 
+          {/* Project Breadcrumb (matching Groq screenshot) */}
           <div className="hidden sm:flex items-center gap-2 text-xs text-[#F2EFE9]/60">
-            <span>Neural Engine</span>
+            <span>Personal</span>
             <span>/</span>
-            <span className="text-[#F2EFE9] font-bold">Playground</span>
+            <span className="text-[#F2EFE9] font-bold">Default Project</span>
           </div>
         </div>
 
-        {/* Center Active Provider & Model Pill */}
+        {/* Center Mode Switcher (Chat vs Studio) & Model Selector */}
         <div className="flex items-center gap-3">
           <div className="flex items-center border border-[#F2EFE9]/20 bg-[#F2EFE9]/5 p-0.5 text-xs">
-            <button
-              onClick={() => handleProviderSwitch("xai")}
-              className={`px-3 py-1 font-bold uppercase transition-colors ${
-                provider === "xai"
-                  ? "bg-[#FF3B00] text-[#0B0B0C]"
-                  : "text-[#F2EFE9]/60 hover:text-[#F2EFE9]"
-              }`}
-            >
-              xAI Grok
+            <button className="px-3 py-1 bg-[#FF3B00] text-[#0B0B0C] font-bold uppercase">
+              Chat
             </button>
-            <button
-              onClick={() => handleProviderSwitch("groq")}
-              className={`px-3 py-1 font-bold uppercase transition-colors ${
-                provider === "groq"
-                  ? "bg-[#FF3B00] text-[#0B0B0C]"
-                  : "text-[#F2EFE9]/60 hover:text-[#F2EFE9]"
-              }`}
-            >
-              Groq LPU
+            <button className="px-3 py-1 text-[#F2EFE9]/50 hover:text-[#F2EFE9] uppercase">
+              Studio
             </button>
           </div>
 
+          {/* Model Badge */}
           <div className="hidden md:flex items-center gap-2 text-xs border border-[#F2EFE9]/20 px-3 py-1.5 bg-[#0B0B0C]">
             <span className="w-2 h-2 bg-[#FF3B00] animate-pulse" />
-            <span className="text-[#F2EFE9] font-bold truncate max-w-[180px]">
-              {ALL_MODELS.find((m) => m.id === model)?.name || model}
+            <span className="text-[#F2EFE9] font-bold truncate max-w-[200px]">
+              {availableModels.find((m) => m.id === model)?.name || model}
+            </span>
+            <span className="text-[10px] text-[#FF3B00] px-1 bg-[#FF3B00]/10">
+              LPU
             </span>
           </div>
         </div>
 
-        {/* Right Buttons */}
+        {/* Right Action Buttons */}
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsCodeModalOpen(true)}
@@ -575,7 +542,7 @@ main();`;
             className="px-3 py-1.5 border border-[#F2EFE9]/30 text-xs hover:border-[#FF3B00] hover:text-[#FF3B00] transition-colors flex items-center gap-1.5"
           >
             <span>&lt;/&gt;</span>
-            <span className="hidden sm:inline">View Code</span>
+            <span className="hidden sm:inline">View code</span>
           </button>
 
           <Link
@@ -588,11 +555,11 @@ main();`;
         </div>
       </header>
 
-      {/* Main Workspace Layout */}
+      {/* Main Workspace: Left Chat Canvas + Right PARAMETERS Panel */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Left Chat Area */}
         <main className="flex-1 flex flex-col justify-between overflow-y-auto border-r border-[#F2EFE9]/15">
-          {/* System Instructions Header */}
+          {/* SYSTEM Message Box (Matching Groq screenshot) */}
           <div className="border-b border-[#F2EFE9]/15 bg-[#0B0B0C]">
             <div className="px-6 py-2.5 flex items-center justify-between text-xs text-[#F2EFE9]/50 border-b border-[#F2EFE9]/10">
               <button
@@ -600,7 +567,10 @@ main();`;
                 className="flex items-center gap-2 text-[#FF3B00] font-bold uppercase hover:text-[#F2EFE9]"
               >
                 <span>{isSystemOpen ? "▼" : "▶"}</span>
-                <span>SYSTEM INSTRUCTIONS</span>
+                <span>SYSTEM</span>
+                <span className="text-[11px] text-[#F2EFE9]/40 font-normal">
+                  Enter system message (Optional)
+                </span>
               </button>
 
               <div className="flex items-center gap-2">
@@ -621,7 +591,7 @@ main();`;
                 <textarea
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
-                  placeholder="Enter system prompt (e.g. You are Grok, an AI created by xAI)..."
+                  placeholder="Enter system message (Optional)..."
                   rows={2}
                   className="w-full bg-[#F2EFE9]/5 border border-[#F2EFE9]/20 p-3 text-xs md:text-sm text-[#F2EFE9] focus:outline-none focus:border-[#FF3B00] transition-colors font-mono resize-y"
                 />
@@ -629,23 +599,21 @@ main();`;
             )}
           </div>
 
-          {/* Message Thread */}
+          {/* Messages Stream Container */}
           <div className="flex-1 p-4 sm:p-8 space-y-6 overflow-y-auto">
             {messages.length === 0 && (
               <div className="h-64 flex flex-col items-center justify-center text-center font-mono space-y-3">
                 <div className="text-3xl font-instrument italic text-[#F2EFE9]">
-                  DSGKX Neural Sandbox
+                  Groq LPU Neural Playground
                 </div>
                 <p className="text-xs text-[#F2EFE9]/60 max-w-md">
-                  Active Provider:{" "}
-                  <span className="text-[#FF3B00] font-bold">
-                    {provider === "xai" ? "xAI Grok" : "Groq LPU"}
-                  </span>
-                  . Enter your message below to stream completions.
+                  Powered by Groq LPUs for sub-second deterministic inference. Enter your query below to stream tokens.
                 </p>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleSubmit("How far is the Moon from Earth?")}
+                    onClick={() =>
+                      handleSubmit("How far is the Moon from Earth in miles and kilometers?")
+                    }
                     className="px-3 py-1.5 border border-[#FF3B00] text-xs text-[#FF3B00] hover:bg-[#FF3B00] hover:text-[#0B0B0C] transition-colors"
                   >
                     Try: &quot;How far is the Moon?&quot; →
@@ -691,7 +659,7 @@ main();`;
                         }`}
                       >
                         {isError
-                          ? "INFERENCE ERROR"
+                          ? "GROQ API ERROR"
                           : isUser
                           ? "USER"
                           : `ASSISTANT // ${model.toUpperCase()}`}
@@ -714,30 +682,27 @@ main();`;
                     {msg.content}
                   </div>
 
-                  {/* 1-Click Error Recovery Button if model mismatch */}
+                  {/* 1-Click Recovery if model error occurs */}
                   {isError && (
                     <div className="mt-4 pt-3 border-t border-red-500/30 flex flex-wrap gap-2">
-                      {provider === "groq" ? (
-                        <button
-                          onClick={() => {
-                            handleProviderSwitch("xai");
-                            handleSubmit("How far is the moon?");
-                          }}
-                          className="px-3 py-1.5 bg-[#FF3B00] text-[#0B0B0C] font-bold text-xs uppercase hover:bg-white transition-colors"
-                        >
-                          👉 Switch to xAI Grok (grok-2-latest) &amp; Retry
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setModel("grok-2-latest");
-                            handleSubmit("How far is the moon?");
-                          }}
-                          className="px-3 py-1.5 bg-[#FF3B00] text-[#0B0B0C] font-bold text-xs uppercase hover:bg-white transition-colors"
-                        >
-                          👉 Set Model to grok-2-latest &amp; Retry
-                        </button>
-                      )}
+                      <button
+                        onClick={() => {
+                          setModel("llama-3.3-70b-versatile");
+                          handleSubmit("How far is the Moon from Earth?");
+                        }}
+                        className="px-3 py-1.5 bg-[#FF3B00] text-[#0B0B0C] font-bold text-xs uppercase hover:bg-white transition-colors"
+                      >
+                        👉 Switch to Llama 3.3 70B &amp; Retry
+                      </button>
+                      <button
+                        onClick={() => {
+                          setModel("llama-3.1-8b-instant");
+                          handleSubmit("How far is the Moon from Earth?");
+                        }}
+                        className="px-3 py-1.5 border border-[#F2EFE9]/30 text-[#F2EFE9] hover:border-[#FF3B00] text-xs uppercase transition-colors"
+                      >
+                        Try Llama 3.1 8B Instant
+                      </button>
                     </div>
                   )}
                 </div>
@@ -750,9 +715,9 @@ main();`;
                 <div className="flex justify-between items-center text-[10px] font-mono border-b border-[#FF3B00]/20 pb-2 mb-3 text-[#FF3B00]">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-[#FF3B00] animate-ping" />
-                    <span className="font-bold">STREAMING FROM {model.toUpperCase()}</span>
+                    <span className="font-bold">STREAMING FROM GROQ LPU // {model.toUpperCase()}</span>
                   </div>
-                  <span className="font-bold">INFERENCE ACTIVE...</span>
+                  <span className="font-bold">INFERENCE IN PROGRESS...</span>
                 </div>
 
                 <div className="font-mono text-xs sm:text-sm text-[#F2EFE9] leading-relaxed whitespace-pre-wrap">
@@ -765,7 +730,7 @@ main();`;
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Bottom Action Ribbon */}
+          {/* Bottom Action Ribbon (Matching Groq console layout) */}
           <div className="border-t border-[#F2EFE9]/15 bg-[#0B0B0C] p-4 sm:p-6 space-y-3">
             <div className="flex items-center justify-between text-xs font-mono text-[#F2EFE9]/40">
               <div className="flex items-center gap-3">
@@ -782,7 +747,7 @@ main();`;
                   data-cursor="CLEAR"
                   className="hover:text-[#FF3B00] transition-colors"
                 >
-                  Clear thread
+                  Clear
                 </button>
               </div>
 
@@ -794,12 +759,13 @@ main();`;
                 value={currentInput}
                 onChange={(e) => setCurrentInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={`Ask ${model}... (e.g. How far is the Moon from Earth?)`}
+                placeholder="Enter user message..."
                 rows={3}
                 disabled={isLoading}
                 className="w-full bg-[#F2EFE9]/5 border-2 border-[#F2EFE9]/20 p-4 text-xs sm:text-sm text-[#F2EFE9] focus:outline-none focus:border-[#FF3B00] transition-colors font-mono resize-none disabled:opacity-50"
               />
 
+              {/* Submit Button (Matching screenshot's Submit ⌘↵ pill) */}
               <div className="absolute bottom-4 right-4 flex items-center gap-2">
                 {isLoading ? (
                   <button
@@ -813,10 +779,10 @@ main();`;
                   <button
                     onClick={() => handleSubmit()}
                     data-cursor="RUN"
-                    className="px-5 py-2.5 bg-[#FF3B00] text-[#0B0B0C] font-bold text-xs uppercase tracking-wider hover:bg-[#F2EFE9] transition-colors flex items-center gap-2"
+                    className="px-6 py-2 bg-[#FF3B00] text-[#0B0B0C] font-bold text-xs uppercase tracking-wider hover:bg-[#F2EFE9] transition-all flex items-center gap-2 border border-[#FF3B00]"
                   >
                     <span>Submit</span>
-                    <span className="text-[10px] text-[#0B0B0C]/70">⌘↵</span>
+                    <span className="text-[10px] text-[#0B0B0C]/80 font-mono">⌘↵</span>
                   </button>
                 )}
               </div>
@@ -824,49 +790,20 @@ main();`;
           </div>
         </main>
 
-        {/* Right Sidebar: PARAMETERS Panel */}
+        {/* Right Sidebar: PARAMETERS Panel (Matching Groq Console) */}
         <aside className="w-full lg:w-80 xl:w-96 bg-[#0B0B0C] border-t lg:border-t-0 border-[#F2EFE9]/15 p-6 overflow-y-auto space-y-6 select-none">
           <div className="flex justify-between items-center text-xs font-mono border-b border-[#F2EFE9]/15 pb-3">
             <span className="text-[#FF3B00] font-bold uppercase tracking-wider">
               [PARAMETERS]
             </span>
-            <span className="text-[#F2EFE9]/40 text-[10px]">DSGKX // INFERENCE</span>
+            <span className="text-[#F2EFE9]/40 text-[10px]">GROQ LPU ENGINE</span>
           </div>
 
-          {/* 1. Provider Selector Switch */}
-          <div className="space-y-1.5 font-mono text-xs">
-            <label className="text-[#F2EFE9]/70 block text-[10px] uppercase">
-              TARGET PROVIDER
-            </label>
-            <div className="grid grid-cols-2 gap-1 border border-[#F2EFE9]/20 p-1">
-              <button
-                onClick={() => handleProviderSwitch("xai")}
-                className={`py-2 text-center text-xs uppercase font-bold transition-all ${
-                  provider === "xai"
-                    ? "bg-[#FF3B00] text-[#0B0B0C]"
-                    : "text-[#F2EFE9]/50 hover:text-[#F2EFE9]"
-                }`}
-              >
-                🧠 xAI Grok
-              </button>
-              <button
-                onClick={() => handleProviderSwitch("groq")}
-                className={`py-2 text-center text-xs uppercase font-bold transition-all ${
-                  provider === "groq"
-                    ? "bg-[#FF3B00] text-[#0B0B0C]"
-                    : "text-[#F2EFE9]/50 hover:text-[#F2EFE9]"
-                }`}
-              >
-                ⚡ Groq LPU
-              </button>
-            </div>
-          </div>
-
-          {/* 2. API Key Box */}
+          {/* 1. Groq API Key Input */}
           <div className="border border-[#F2EFE9]/20 p-4 bg-[#F2EFE9]/5 space-y-2">
             <div className="flex justify-between items-center text-[10px] font-mono">
               <span className="text-[#FF3B00] font-bold uppercase">
-                {provider === "xai" ? "XAI GROK API KEY" : "GROQ API KEY"}
+                GROQ API KEY
               </span>
               <button
                 onClick={() => setShowApiKey(!showApiKey)}
@@ -880,59 +817,74 @@ main();`;
               type={showApiKey ? "text" : "password"}
               value={apiKey}
               onChange={(e) => handleApiKeyChange(e.target.value)}
-              placeholder={
-                provider === "xai"
-                  ? "xai-... (Enter your xAI Grok Key)"
-                  : "gsk_... (Enter your Groq Key)"
-              }
+              placeholder="gsk_... (Enter your Groq Key)"
               className="w-full bg-[#0B0B0C] border border-[#F2EFE9]/30 p-2 text-xs text-[#F2EFE9] font-mono focus:outline-none focus:border-[#FF3B00]"
             />
 
             <div className="text-[10px] text-[#F2EFE9]/50 flex justify-between pt-1">
               <span>
-                {apiKey
-                  ? provider === "xai"
-                    ? "✓ xAI Grok Key Stored"
-                    : "✓ Groq Key Stored"
-                  : "Demo Simulation Mode"}
+                {apiKey ? "✓ Groq Key Stored" : "Simulation Mode (No Key)"}
               </span>
               <a
-                href={
-                  provider === "xai"
-                    ? "https://console.x.ai"
-                    : "https://console.groq.com/keys"
-                }
+                href="https://console.groq.com/keys"
                 target="_blank"
                 rel="noreferrer"
                 className="text-[#FF3B00] underline"
               >
-                Get {provider === "xai" ? "xAI" : "Groq"} Key ↗
+                Get Groq Key ↗
               </a>
             </div>
+
+            {/* Sync live models button */}
+            {apiKey && (
+              <button
+                onClick={() => fetchLiveGroqModels(apiKey)}
+                disabled={isFetchingModels}
+                className="w-full mt-1 py-1 text-[10px] border border-[#F2EFE9]/20 hover:border-[#FF3B00] text-[#F2EFE9]/70 hover:text-[#FF3B00] transition-colors"
+              >
+                {isFetchingModels ? "Syncing..." : "↻ Sync Live Models from Groq"}
+              </button>
+            )}
           </div>
 
-          {/* 3. Model Selector Dropdown */}
+          {/* 2. Model Selector Dropdown */}
           <div className="space-y-1.5 font-mono text-xs">
-            <label className="text-[#F2EFE9]/70 flex justify-between">
-              <span>MODEL</span>
+            <div className="flex justify-between items-center">
+              <span className="text-[#F2EFE9]/70">MODEL</span>
               <span className="text-[10px] text-[#FF3B00]">
-                {ALL_MODELS.find((m) => m.id === model)?.speed}
+                {availableModels.find((m) => m.id === model)?.speed || "~500 tok/s"}
               </span>
-            </label>
+            </div>
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
               className="w-full bg-[#0B0B0C] border-2 border-[#F2EFE9]/30 p-2.5 text-xs text-[#F2EFE9] font-bold focus:outline-none focus:border-[#FF3B00]"
             >
-              {currentModelsList.map((m) => (
+              {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name} ({m.context})
                 </option>
               ))}
             </select>
+
+            {/* Custom Model Input Option */}
+            <div className="pt-1">
+              <input
+                type="text"
+                placeholder="Or type custom Groq model ID..."
+                value={customModelInput}
+                onChange={(e) => setCustomModelInput(e.target.value)}
+                onBlur={() => {
+                  if (customModelInput.trim()) {
+                    setModel(customModelInput.trim());
+                  }
+                }}
+                className="w-full bg-[#0B0B0C] border border-[#F2EFE9]/20 p-1.5 text-[11px] text-[#F2EFE9] focus:outline-none focus:border-[#FF3B00]"
+              />
+            </div>
           </div>
 
-          {/* 4. Temperature Slider */}
+          {/* 3. Temperature Slider (Matching Groq screenshot: 0-2, default 1) */}
           <div className="space-y-1.5 font-mono text-xs">
             <div className="flex justify-between items-center">
               <span className="text-[#F2EFE9]/70">Temperature</span>
@@ -957,19 +909,19 @@ main();`;
             />
             <div className="flex justify-between text-[10px] text-[#F2EFE9]/40">
               <span>0 (Factual)</span>
-              <span>1 (Creative)</span>
-              <span>2 (Chaos)</span>
+              <span>1 (Default)</span>
+              <span>2 (Creative)</span>
             </div>
           </div>
 
-          {/* 5. Max Completion Tokens */}
+          {/* 4. Max Completion Tokens (Matching Groq screenshot: default 2048) */}
           <div className="space-y-1.5 font-mono text-xs">
             <div className="flex justify-between items-center">
               <span className="text-[#F2EFE9]/70">Max Completion Tokens</span>
               <input
                 type="number"
                 min="1"
-                max="8192"
+                max="32768"
                 step="64"
                 value={maxTokens}
                 onChange={(e) => setMaxTokens(parseInt(e.target.value))}
@@ -987,27 +939,29 @@ main();`;
             />
           </div>
 
-          {/* 6. Top P */}
+          {/* 5. Reasoning Effort (Matching Groq screenshot: medium) */}
           <div className="space-y-1.5 font-mono text-xs">
             <div className="flex justify-between items-center">
-              <span className="text-[#F2EFE9]/70">Top P (Nucleus)</span>
-              <span className="text-[#FF3B00] font-bold">{topP}</span>
+              <span className="text-[#F2EFE9]/70">Reasoning</span>
+              <select
+                value={reasoningEffort}
+                onChange={(e) =>
+                  setReasoningEffort(e.target.value as "none" | "low" | "medium" | "high")
+                }
+                className="bg-[#0B0B0C] border border-[#F2EFE9]/30 px-2 py-1 text-xs text-[#FF3B00] font-bold"
+              >
+                <option value="none">none</option>
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+              </select>
             </div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={topP}
-              onChange={(e) => setTopP(parseFloat(e.target.value))}
-              className="w-full accent-[#FF3B00] bg-[#F2EFE9]/10 h-1.5 cursor-pointer"
-            />
           </div>
 
-          {/* 7. Stream Toggle */}
+          {/* 6. Stream & JSON Toggles (Matching Groq screenshot) */}
           <div className="space-y-3 pt-2 border-t border-[#F2EFE9]/10 font-mono text-xs">
             <div className="flex justify-between items-center">
-              <span className="text-[#F2EFE9]/70">Stream Response</span>
+              <span className="text-[#F2EFE9]/70">Stream</span>
               <button
                 onClick={() => setIsStreaming(!isStreaming)}
                 className={`w-11 h-6 p-0.5 border transition-colors ${
@@ -1043,11 +997,53 @@ main();`;
             </div>
           </div>
 
-          {/* 8. Live Telemetry */}
+          {/* 7. Built-in Tools (Matching Groq Console: Browser Search & Code Interpreter) */}
+          <div className="space-y-2.5 pt-2 border-t border-[#F2EFE9]/10 font-mono text-xs">
+            <span className="text-[10px] text-[#F2EFE9]/40 uppercase block">
+              BUILT-IN TOOLS
+            </span>
+            <div className="flex justify-between items-center">
+              <span className="text-[#F2EFE9]/70">Browser Search</span>
+              <button
+                onClick={() => setBrowserSearch(!browserSearch)}
+                className={`w-11 h-6 p-0.5 border transition-colors ${
+                  browserSearch
+                    ? "border-[#FF3B00] bg-[#FF3B00]"
+                    : "border-[#F2EFE9]/30 bg-[#F2EFE9]/10"
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 bg-[#0B0B0C] transition-transform ${
+                    browserSearch ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <span className="text-[#F2EFE9]/70">Code Interpreter</span>
+              <button
+                onClick={() => setCodeInterpreter(!codeInterpreter)}
+                className={`w-11 h-6 p-0.5 border transition-colors ${
+                  codeInterpreter
+                    ? "border-[#FF3B00] bg-[#FF3B00]"
+                    : "border-[#F2EFE9]/30 bg-[#F2EFE9]/10"
+                }`}
+              >
+                <div
+                  className={`w-4 h-4 bg-[#0B0B0C] transition-transform ${
+                    codeInterpreter ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* 8. Live Telemetry HUD */}
           <div className="border border-[#F2EFE9]/20 p-4 bg-[#0B0B0C] space-y-2 font-mono text-xs">
             <div className="text-[10px] text-[#FF3B00] font-bold uppercase border-b border-[#F2EFE9]/10 pb-1 flex justify-between">
               <span>LIVE TELEMETRY</span>
-              <span>{provider.toUpperCase()}</span>
+              <span>GROQ LPU</span>
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
               <div>
@@ -1077,13 +1073,13 @@ main();`;
         </aside>
       </div>
 
-      {/* Code Export Modal */}
+      {/* Code Export Modal (cURL, Python, Node.js) */}
       {isCodeModalOpen && (
         <div className="fixed inset-0 z-50 bg-[#0B0B0C]/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-2xl border-2 border-[#F2EFE9]/30 bg-[#0B0B0C] p-6 space-y-4 swiss-grid shadow-[0_0_50px_rgba(255,59,0,0.2)]">
             <div className="flex justify-between items-center border-b border-[#F2EFE9]/15 pb-3">
               <span className="font-bold text-sm text-[#FF3B00]">
-                [EXPORT RUNTIME CODE: {provider.toUpperCase()}]
+                [EXPORT RUNTIME CODE: GROQ LPU]
               </span>
               <button
                 onClick={() => setIsCodeModalOpen(false)}
@@ -1094,7 +1090,7 @@ main();`;
             </div>
 
             <div className="flex gap-2 text-xs font-mono border-b border-[#F2EFE9]/10 pb-2">
-              {(["curl", "python", "node"] as const).map((t) => (
+              {(["python", "curl", "node"] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setCodeTab(t)}
@@ -1104,7 +1100,7 @@ main();`;
                       : "border-[#F2EFE9]/20 text-[#F2EFE9]/60 hover:text-[#F2EFE9]"
                   }`}
                 >
-                  {t === "node" ? "Node.js (TS)" : t}
+                  {t === "python" ? "Python (Groq SDK)" : t === "node" ? "Node.js (TS)" : "cURL"}
                 </button>
               ))}
             </div>

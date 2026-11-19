@@ -2,21 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-const SIMULATED_STREAM_CHUNKS = [
-  "DSGKX Neural Engine initialized. ",
-  "The Moon is approximately 384,400 kilometers (238,855 miles) away from Earth on average. ",
-  "Because its orbit is elliptical, this distance oscillates between 363,300 km at perigee (closest approach) and 405,500 km at apogee (farthest reach).\n\n",
-  "```python\n# Distance Calculation in Kilometers\naverage_distance_km = 384_400\nlight_travel_time_sec = average_distance_km / 299_792.458  # ~1.28 seconds\nprint(f'Light takes {light_travel_time_sec:.2f}s to reach the Moon')\n```\n\n",
-  "To execute live inference with your own model weights, make sure to select the matching provider: ",
-  "• If you have an xAI Grok key (starts with 'xai-'), choose the 'xAI Grok' provider and a 'grok-2' model.\n",
-  "• If you have a Groq key (starts with 'gsk_'), choose the 'Groq LPUs' provider and a 'llama-3' model.",
+const SIMULATED_GROQ_CHUNKS = [
+  "DSGKX Neural Engine on Groq LPUs initialized.\n\n",
+  "The Groq Language Processing Unit (LPU) architecture is fundamentally different from conventional GPUs. ",
+  "Instead of using high-bandwidth memory (HBM) with non-deterministic caching, ",
+  "Groq LPUs use massively parallel Tensor Streaming Processors (TSPs) with ultra-fast on-chip SRAM. ",
+  "This architecture delivers deterministic instruction execution and achieves sustained inference throughput exceeding 500–850 tokens per second.\n\n",
+  "```python\n# Groq Python SDK Example\nfrom groq import Groq\n\nclient = Groq(api_key=\"your_groq_api_key\")\ncompletion = client.chat.completions.create(\n    model=\"llama-3.3-70b-versatile\",\n    messages=[\n        {\"role\": \"user\", \"content\": \"Explain Groq LPU determinism\"}\n    ],\n    temperature=0.7,\n    stream=True\n)\n\nfor chunk in completion:\n    print(chunk.choices[0].delta.content or \"\", end=\"\")\n```\n\n",
+  "To execute live inference with your own Groq account, enter your Groq API key (starts with 'gsk_') in the Parameters panel on the right.",
 ];
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    let {
-      provider = "auto", // "groq" | "xai" | "openai" | "demo" | "auto"
+    const {
       apiKey = "",
       model = "llama-3.3-70b-versatile",
       messages = [],
@@ -24,18 +23,18 @@ export async function POST(req: NextRequest) {
       max_tokens = 2048,
       top_p = 1.0,
       stream = true,
-      customBaseUrl = "",
+      reasoning_effort,
     } = body;
 
     const trimmedKey = (apiKey || "").trim().replace(/^["']|["']$/g, "");
 
-    // If demo mode or no key provided, return simulated stream
-    if (provider === "demo" || !trimmedKey) {
+    // If no API key provided, stream high-fidelity simulation
+    if (!trimmedKey) {
       if (stream) {
         const encoder = new TextEncoder();
         const demoStream = new ReadableStream({
           async start(controller) {
-            for (const chunk of SIMULATED_STREAM_CHUNKS) {
+            for (const chunk of SIMULATED_GROQ_CHUNKS) {
               const data = JSON.stringify({
                 choices: [
                   {
@@ -46,7 +45,7 @@ export async function POST(req: NextRequest) {
                 ],
               });
               controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-              await new Promise((res) => setTimeout(res, 50));
+              await new Promise((res) => setTimeout(res, 40));
             }
             controller.enqueue(encoder.encode("data: [DONE]\n\n"));
             controller.close();
@@ -67,37 +66,15 @@ export async function POST(req: NextRequest) {
           {
             message: {
               role: "assistant",
-              content: SIMULATED_STREAM_CHUNKS.join(""),
+              content: SIMULATED_GROQ_CHUNKS.join(""),
             },
           },
         ],
       });
     }
 
-    // Determine target provider & endpoint
-    let endpoint = "https://api.groq.com/openai/v1/chat/completions";
-
-    const isXaiKey = trimmedKey.startsWith("xai-");
-    const isGroqKey = trimmedKey.startsWith("gsk_");
-    const isGrokModel = model.toLowerCase().startsWith("grok");
-
-    if (provider === "xai" || isXaiKey || isGrokModel) {
-      endpoint = "https://api.x.ai/v1/chat/completions";
-      // Auto-correct model for xAI if a Llama model was accidentally passed with an xAI key
-      if (!isGrokModel && (provider === "xai" || isXaiKey)) {
-        model = "grok-2-latest";
-      }
-    } else if (provider === "groq" || isGroqKey) {
-      endpoint = "https://api.groq.com/openai/v1/chat/completions";
-      // Auto-correct model for Groq if a Grok model was accidentally passed with a Groq key
-      if (isGrokModel) {
-        model = "llama-3.3-70b-versatile";
-      }
-    } else if (provider === "custom" && customBaseUrl) {
-      endpoint = customBaseUrl.endsWith("/chat/completions")
-        ? customBaseUrl
-        : `${customBaseUrl.replace(/\/$/, "")}/chat/completions`;
-    }
+    // Call Groq Official API Endpoint
+    const endpoint = "https://api.groq.com/openai/v1/chat/completions";
 
     const payload: Record<string, unknown> = {
       model,
@@ -107,6 +84,10 @@ export async function POST(req: NextRequest) {
       top_p,
       stream,
     };
+
+    if (reasoning_effort) {
+      payload.reasoning_effort = reasoning_effort;
+    }
 
     const response = await fetch(endpoint, {
       method: "POST",
@@ -119,7 +100,7 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errText = await response.text();
-      let errMsg = `Upstream error (${response.status}): ${response.statusText}`;
+      let errMsg = `Groq API Error (${response.status}): ${response.statusText}`;
       try {
         const parsed = JSON.parse(errText);
         if (parsed.error?.message) {
@@ -128,19 +109,18 @@ export async function POST(req: NextRequest) {
       } catch {
         errMsg = errText || errMsg;
       }
+
       return NextResponse.json(
         {
           error: errMsg,
-          hint: isXaiKey
-            ? "Your key starts with 'xai-' (xAI Grok). Make sure your model is set to 'grok-2-latest'."
-            : isGroqKey
-            ? "Your key starts with 'gsk_' (Groq). Make sure your model is set to a Groq model (e.g. llama-3.3-70b-versatile)."
-            : undefined,
+          status: response.status,
+          modelAttempted: model,
         },
         { status: response.status }
       );
     }
 
+    // Pipe SSE stream directly to client
     if (stream && response.body) {
       const clientStream = new ReadableStream({
         async start(controller) {
