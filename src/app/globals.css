@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0B0B0C;
+  --ink: #F2EFE9;
+  --accent: #FF3B00;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-radius: 0 !important;
+}
+
+html, body {
+  background-color: #0B0B0C;
+  color: #F2EFE9;
+  font-family: var(--font-mono);
+  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Selection */
+::selection {
+  background-color: #FF3B00;
+  color: #0B0B0C;
+}
+
+/* Hide default cursor on desktop when custom cursor active */
+@media (pointer: fine) {
+  body.custom-cursor-active,
+  body.custom-cursor-active * {
+    cursor: none !important;
+  }
+}
+
+/* Swiss Grid Paper Lines */
+.swiss-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(242, 239, 233, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(242, 239, 233, 0.05) 1px, transparent 1px);
+}
+
+.swiss-grid-dense {
+  background-size: 20px 20px;
+  background-image: 
+    linear-gradient(to right, rgba(242, 239, 233, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(242, 239, 233, 0.08) 1px, transparent 1px);
+}
+
+/* Neo-Brutalist Border Rules */
+.brutal-border {
+  border: 1px solid rgba(242, 239, 233, 0.2);
+}
+
+.brutal-border-accent {
+  border: 1px solid #FF3B00;
+}
+
+.brutal-border-b {
+  border-bottom: 1px solid rgba(242, 239, 233, 0.2);
+}
+
+.brutal-border-t {
+  border-top: 1px solid rgba(242, 239, 233, 0.2);
+}
+
+.brutal-border-r {
+  border-right: 1px solid rgba(242, 239, 233, 0.2);
+}
+
+.brutal-border-l {
+  border-left: 1px solid rgba(242, 239, 233, 0.2);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B0B0C;
+  border-left: 1px solid rgba(242, 239, 233, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #FF3B00;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #F2EFE9;
+}
+
+/* Typography Helpers */
+.font-instrument {
+  font-family: 'Instrument Serif', Georgia, serif;
+}
+
+.font-mono-tech {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Subtle Film Grain */
+.noise-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  content: "";
+  opacity: 0.025;
+  pointer-events: none;
+  z-index: 9999;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
