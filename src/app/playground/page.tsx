@@ -148,7 +148,8 @@ export default function PlaygroundPage() {
   const [copyCodeSuccess, setCopyCodeSuccess] = useState<boolean>(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const isInitialMount = useRef(true);
 
   // Load Groq API key from localStorage on mount
   useEffect(() => {
@@ -221,12 +222,21 @@ export default function PlaygroundPage() {
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
   };
 
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     scrollToBottom();
-  }, [messages, streamingContent, streamingReasoning]);
+  }, [messages.length, streamingContent, streamingReasoning]);
 
   // Execute inference request against Groq
   const handleSubmit = async (overridePrompt?: string, overrideModel?: string) => {
@@ -551,9 +561,9 @@ main();`;
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0B0C] text-[#F2EFE9] font-mono flex flex-col selection:bg-[#FF3B00] selection:text-[#0B0B0C]">
+    <div className="h-screen w-screen overflow-hidden bg-[#0B0B0C] text-[#F2EFE9] font-mono flex flex-col selection:bg-[#FF3B00] selection:text-[#0B0B0C]">
       {/* Top Header: Matching Groq Console in Swiss Neo-Brutalist Aesthetic */}
-      <header className="h-14 border-b border-[#F2EFE9]/15 bg-[#0B0B0C] px-4 sm:px-6 flex items-center justify-between z-30 select-none">
+      <header className="h-14 flex-shrink-0 border-b border-[#F2EFE9]/15 bg-[#0B0B0C] px-4 sm:px-6 flex items-center justify-between z-30 select-none">
         <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center gap-2.5 group" data-cursor="HOME">
             <div className="relative w-7 h-7 border border-[#FF3B00] bg-black overflow-hidden flex items-center justify-center">
@@ -626,11 +636,11 @@ main();`;
       </header>
 
       {/* Main Workspace: Left Chat Canvas + Right PARAMETERS Panel */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Left Chat Area */}
-        <main className="flex-1 flex flex-col justify-between overflow-y-auto border-r border-[#F2EFE9]/15">
+        <main className="flex-1 min-h-0 flex flex-col overflow-hidden border-r border-[#F2EFE9]/15 bg-[#0B0B0C]">
           {/* SYSTEM Message Box (Matching Groq screenshot) */}
-          <div className="border-b border-[#F2EFE9]/15 bg-[#0B0B0C]">
+          <div className="flex-shrink-0 border-b border-[#F2EFE9]/15 bg-[#0B0B0C]">
             <div className="px-6 py-2.5 flex items-center justify-between text-xs text-[#F2EFE9]/50 border-b border-[#F2EFE9]/10">
               <button
                 onClick={() => setIsSystemOpen(!isSystemOpen)}
@@ -670,7 +680,7 @@ main();`;
           </div>
 
           {/* Messages Stream Container */}
-          <div className="flex-1 p-4 sm:p-8 space-y-6 overflow-y-auto">
+          <div ref={chatContainerRef} className="flex-1 min-h-0 p-4 sm:p-8 space-y-6 overflow-y-auto">
             {messages.length === 0 && (
               <div className="h-64 flex flex-col items-center justify-center text-center font-mono space-y-3">
                 <div className="text-3xl font-instrument italic text-[#F2EFE9]">
@@ -840,11 +850,10 @@ main();`;
               </div>
             )}
 
-            <div ref={messagesEndRef} />
           </div>
 
           {/* Bottom Action Ribbon (Matching Groq console layout) */}
-          <div className="border-t border-[#F2EFE9]/15 bg-[#0B0B0C] p-4 sm:p-6 space-y-3">
+          <div className="flex-shrink-0 border-t border-[#F2EFE9]/15 bg-[#0B0B0C] p-4 sm:p-6 space-y-3">
             <div className="flex items-center justify-between text-xs font-mono text-[#F2EFE9]/40">
               <div className="flex items-center gap-3">
                 <button
@@ -904,7 +913,7 @@ main();`;
         </main>
 
         {/* Right Sidebar: PARAMETERS Panel (Matching Groq Console) */}
-        <aside className="w-full lg:w-80 xl:w-96 bg-[#0B0B0C] border-t lg:border-t-0 border-[#F2EFE9]/15 p-6 overflow-y-auto space-y-6 select-none">
+        <aside className="w-full lg:w-80 xl:w-96 flex-shrink-0 h-full overflow-y-auto bg-[#0B0B0C] border-t lg:border-t-0 border-[#F2EFE9]/15 p-6 space-y-6 select-none">
           <div className="flex justify-between items-center text-xs font-mono border-b border-[#F2EFE9]/15 pb-3">
             <span className="text-[#FF3B00] font-bold uppercase tracking-wider">
               [PARAMETERS]
