@@ -8,11 +8,13 @@ interface Message {
   id: string;
   role: "system" | "user" | "assistant";
   content: string;
+  reasoning?: string;
   isError?: boolean;
   metrics?: {
     latencyMs?: number;
     tokensPerSec?: number;
     completionTokens?: number;
+    promptTokens?: number;
   };
 }
 
@@ -47,6 +49,13 @@ const DEFAULT_GROQ_MODELS: ModelInfo[] = [
     badge: "GROQ PREVIEW",
   },
   {
+    id: "openai/gpt-oss-20b",
+    name: "OpenAI GPT-OSS 20B",
+    context: "128k context",
+    speed: "~450 tok/s",
+    badge: "FAST",
+  },
+  {
     id: "deepseek-r1-distill-llama-70b",
     name: "DeepSeek R1 Distill 70B",
     context: "128k context",
@@ -54,25 +63,11 @@ const DEFAULT_GROQ_MODELS: ModelInfo[] = [
     badge: "REASONING",
   },
   {
-    id: "mixtral-8x7b-32768",
-    name: "Mixtral 8x7B MoE",
-    context: "32k context",
-    speed: "~550 tok/s",
-    badge: "MOE",
-  },
-  {
-    id: "gemma2-9b-it",
-    name: "Google Gemma 2 9B",
-    context: "8k context",
-    speed: "~750 tok/s",
-    badge: "GEMMA",
-  },
-  {
-    id: "llama-3.1-70b-versatile",
-    name: "Llama 3.1 70B Versatile",
+    id: "qwen/qwen3.8-27b",
+    name: "Qwen 3.8 27B Vision",
     context: "128k context",
-    speed: "~300 tok/s",
-    badge: "VERSATILE",
+    speed: "~350 tok/s",
+    badge: "MULTIMODAL",
   },
 ];
 
@@ -92,11 +87,19 @@ const SYSTEM_PRESETS = [
     prompt:
       "You are DSGKX, an elite Creative Technologist. Your answers are mathematically precise, aesthetically uncompromising, and formatted in clean markdown.",
   },
+  {
+    label: "JSON Specialist",
+    prompt:
+      "You are an automated data transformation kernel. Return strictly formatted, valid JSON objects with zero conversational filler or markdown codeblocks outside JSON.",
+  },
 ];
 
 export default function PlaygroundPage() {
   const [apiKey, setApiKey] = useState<string>("");
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
+  const [apiKeyStatus, setApiKeyStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle");
+  const [apiKeyStatusMsg, setApiKeyStatusMsg] = useState<string>("");
+
   const [model, setModel] = useState<string>("llama-3.3-70b-versatile");
   const [customModelInput, setCustomModelInput] = useState<string>("");
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>(DEFAULT_GROQ_MODELS);
@@ -126,6 +129,7 @@ export default function PlaygroundPage() {
   const [currentInput, setCurrentInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [streamingContent, setStreamingContent] = useState<string>("");
+  const [streamingReasoning, setStreamingReasoning] = useState<string>("");
   const [telemetry, setTelemetry] = useState<{
     latencyMs: number;
     tokensPerSec: number;
@@ -152,17 +156,21 @@ export default function PlaygroundPage() {
       localStorage.getItem("dsgkx_groq_api_key") ||
       localStorage.getItem("dsgkx_api_key");
     if (savedKey) {
-      setApiKey(savedKey);
-      fetchLiveGroqModels(savedKey);
+      const clean = savedKey.trim().replace(/^["']|["']$/g, "");
+      setApiKey(clean);
+      fetchLiveGroqModels(clean);
     }
   }, []);
 
   const handleApiKeyChange = (val: string) => {
-    const clean = val.trim();
+    const clean = val.trim().replace(/^["']|["']$/g, "");
     setApiKey(clean);
     localStorage.setItem("dsgkx_groq_api_key", clean);
     if (clean.length > 10) {
       fetchLiveGroqModels(clean);
+    } else {
+      setApiKeyStatus("idle");
+      setApiKeyStatusMsg("");
     }
   };
 
@@ -170,6 +178,8 @@ export default function PlaygroundPage() {
   const fetchLiveGroqModels = async (key: string) => {
     if (!key) return;
     setIsFetchingModels(true);
+    setApiKeyStatus("checking");
+    setApiKeyStatusMsg("Verifying with Groq Cloud...");
     try {
       const res = await fetch("/api/models", {
         method: "POST",
@@ -177,7 +187,7 @@ export default function PlaygroundPage() {
         body: JSON.stringify({ apiKey: key }),
       });
       const data = await res.json();
-      if (data.models && data.models.length > 0) {
+      if (res.ok && data.models && data.models.length > 0) {
         const liveList: ModelInfo[] = data.models.map((id: string) => {
           const known = DEFAULT_GROQ_MODELS.find((m) => m.id === id);
           return (
@@ -191,13 +201,20 @@ export default function PlaygroundPage() {
           );
         });
         setAvailableModels(liveList);
+        setApiKeyStatus("valid");
+        setApiKeyStatusMsg(`✓ Groq Key Active (${data.models.length} models synced)`);
+
         // If current model isn't in account's models, switch to first available
         if (!data.models.includes(model)) {
           setModel(data.models[0]);
         }
+      } else {
+        setApiKeyStatus("invalid");
+        setApiKeyStatusMsg(data.error || "Groq key verification failed (Check key at console.groq.com/keys)");
       }
     } catch {
-      // Keep default models on network failure
+      setApiKeyStatus("invalid");
+      setApiKeyStatusMsg("Network error verifying Groq key");
     } finally {
       setIsFetchingModels(false);
     }
@@ -209,12 +226,13 @@ export default function PlaygroundPage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, streamingContent]);
+  }, [messages, streamingContent, streamingReasoning]);
 
   // Execute inference request against Groq
-  const handleSubmit = async (overridePrompt?: string) => {
+  const handleSubmit = async (overridePrompt?: string, overrideModel?: string) => {
     if (isLoading) return;
 
+    const activeModel = overrideModel || model;
     let updatedMessages = [...messages];
     const textToSend = overridePrompt !== undefined ? overridePrompt : currentInput.trim();
 
@@ -237,11 +255,15 @@ export default function PlaygroundPage() {
     setMessages(validChatHistory);
     setIsLoading(true);
     setStreamingContent("");
+    setStreamingReasoning("");
 
     const startTime = performance.now();
     let firstTokenTime = 0;
     let accumulatedText = "";
+    let accumulatedReasoning = "";
     let tokenCount = 0;
+    let exactPromptTokens = 0;
+    let exactCompletionTokens = 0;
 
     abortControllerRef.current = new AbortController();
 
@@ -250,7 +272,9 @@ export default function PlaygroundPage() {
         ...(systemPrompt.trim()
           ? [{ role: "system", content: systemPrompt.trim() }]
           : []),
-        ...validChatHistory.map((m) => ({ role: m.role, content: m.content })),
+        ...validChatHistory
+          .filter((m) => m.content.trim().length > 0)
+          .map((m) => ({ role: m.role, content: m.content.trim() })),
       ];
 
       const res = await fetch("/api/chat", {
@@ -259,13 +283,14 @@ export default function PlaygroundPage() {
         signal: abortControllerRef.current.signal,
         body: JSON.stringify({
           apiKey: apiKey.trim(),
-          model,
+          model: activeModel,
           messages: fullMessagesPayload,
           temperature,
           max_tokens: maxTokens,
           top_p: 1.0,
           stream: isStreaming,
           reasoning_effort: reasoningEffort !== "none" ? reasoningEffort : undefined,
+          response_format: isJsonMode ? { type: "json_object" } : undefined,
         }),
       });
 
@@ -295,17 +320,38 @@ export default function PlaygroundPage() {
             if (trimmed.startsWith("data: ")) {
               try {
                 const parsed = JSON.parse(trimmed.slice(6));
-                const delta = parsed.choices?.[0]?.delta?.content || "";
+                const delta = parsed.choices?.[0]?.delta;
+
                 if (delta) {
-                  if (tokenCount === 0) {
-                    firstTokenTime = performance.now();
+                  // Capture reasoning tokens (e.g. DeepSeek R1)
+                  if (delta.reasoning_content) {
+                    accumulatedReasoning += delta.reasoning_content;
+                    setStreamingReasoning(accumulatedReasoning);
                   }
-                  tokenCount++;
-                  accumulatedText += delta;
-                  setStreamingContent(accumulatedText);
+
+                  // Capture main content tokens
+                  if (delta.content) {
+                    if (tokenCount === 0) {
+                      firstTokenTime = performance.now();
+                    }
+                    tokenCount++;
+                    accumulatedText += delta.content;
+                    setStreamingContent(accumulatedText);
+                  }
+                }
+
+                // Check for stream usage chunk (stream_options: { include_usage: true })
+                if (parsed.usage) {
+                  if (parsed.usage.prompt_tokens) {
+                    exactPromptTokens = parsed.usage.prompt_tokens;
+                  }
+                  if (parsed.usage.completion_tokens) {
+                    exactCompletionTokens = parsed.usage.completion_tokens;
+                    tokenCount = exactCompletionTokens;
+                  }
                 }
               } catch {
-                // Ignore parse glitches
+                // Ignore SSE framing splits
               }
             }
           }
@@ -314,19 +360,26 @@ export default function PlaygroundPage() {
         const json = await res.json();
         accumulatedText = json.choices?.[0]?.message?.content || "";
         tokenCount = Math.ceil(accumulatedText.length / 4);
+        if (json.usage) {
+          exactPromptTokens = json.usage.prompt_tokens || 0;
+          exactCompletionTokens = json.usage.completion_tokens || tokenCount;
+          tokenCount = exactCompletionTokens;
+        }
       }
 
       const totalTimeMs = performance.now() - startTime;
       const genTimeSec = (totalTimeMs - (firstTokenTime ? firstTokenTime - startTime : 0)) / 1000;
       const speed = genTimeSec > 0 ? Math.round(tokenCount / genTimeSec) : 0;
 
+      const promptTok =
+        exactPromptTokens ||
+        Math.ceil(fullMessagesPayload.reduce((acc, m) => acc + m.content.length, 0) / 4);
+
       setTelemetry({
         latencyMs: Math.round(totalTimeMs),
         tokensPerSec: speed,
-        completionTokens: tokenCount,
-        promptTokens: Math.ceil(
-          fullMessagesPayload.reduce((acc, m) => acc + m.content.length, 0) / 4
-        ),
+        completionTokens: exactCompletionTokens || tokenCount,
+        promptTokens: promptTok,
       });
 
       setMessages((prev) => [
@@ -335,10 +388,12 @@ export default function PlaygroundPage() {
           id: `msg-${Date.now()}`,
           role: "assistant",
           content: accumulatedText,
+          reasoning: accumulatedReasoning || undefined,
           metrics: {
             latencyMs: Math.round(totalTimeMs),
             tokensPerSec: speed,
-            completionTokens: tokenCount,
+            completionTokens: exactCompletionTokens || tokenCount,
+            promptTokens: promptTok,
           },
         },
       ]);
@@ -357,7 +412,7 @@ export default function PlaygroundPage() {
             isError: true,
             content: `⚠ [GROQ LPU API ERROR]: ${errorMsg}\n\n${
               isModelAccessError
-                ? "Notice: Your Groq API key might not have access to this specific model ID. Click below to switch to 'llama-3.3-70b-versatile' or sync your active Groq models!"
+                ? `Notice: The model '${activeModel}' is not active or accessible on your Groq tier. Click below to instantly switch to an active production model:`
                 : "Please verify your Groq API key (starts with 'gsk_') in the Parameters sidebar."
             }`,
           },
@@ -366,6 +421,7 @@ export default function PlaygroundPage() {
     } finally {
       setIsLoading(false);
       setStreamingContent("");
+      setStreamingReasoning("");
     }
   };
 
@@ -381,6 +437,7 @@ export default function PlaygroundPage() {
     setMessages([]);
     setCurrentInput("");
     setStreamingContent("");
+    setStreamingReasoning("");
   };
 
   const handleAddUserTurn = () => {
@@ -420,7 +477,9 @@ completion = client.chat.completions.create(
     messages=${JSON.stringify(fullMessages, null, 4)},
     temperature=${temperature},
     max_tokens=${maxTokens},
-    stream=${isStreaming},
+    stream=${isStreaming},${isJsonMode ? '\n    response_format={"type": "json_object"},' : ""}${
+      reasoningEffort !== "none" ? `\n    reasoning_effort="${reasoningEffort}",` : ""
+    }
 )
 
 ${
@@ -437,16 +496,24 @@ ${
       ...messages.filter((m) => !m.isError).map((m) => ({ role: m.role, content: m.content })),
     ];
 
+    const bodyObj: Record<string, unknown> = {
+      model,
+      messages: fullMessages,
+      temperature,
+      max_tokens: maxTokens,
+      stream: isStreaming,
+    };
+    if (isJsonMode) {
+      bodyObj.response_format = { type: "json_object" };
+    }
+    if (reasoningEffort !== "none") {
+      bodyObj.reasoning_effort = reasoningEffort;
+    }
+
     return `curl -X POST "https://api.groq.com/openai/v1/chat/completions" \\
   -H "Authorization: Bearer ${apiKey || "$GROQ_API_KEY"}" \\
   -H "Content-Type: application/json" \\
-  -d '{
-    "model": "${model}",
-    "messages": ${JSON.stringify(fullMessages, null, 4)},
-    "temperature": ${temperature},
-    "max_tokens": ${maxTokens},
-    "stream": ${isStreaming}
-  }'`;
+  -d '${JSON.stringify(bodyObj, null, 2)}'`;
   };
 
   const getNodeSnippet = () => {
@@ -458,12 +525,15 @@ async function main() {
   const chatCompletion = await groq.chat.completions.create({
     model: "${model}",
     messages: [
-      { role: "system", content: "${systemPrompt}" },
-${messages.filter((m) => !m.isError).map((m) => `      { role: "${m.role}", content: "${m.content.replace(/"/g, '\\"')}" },`).join("\n")}
+      { role: "system", content: "${systemPrompt.replace(/"/g, '\\"')}" },
+${messages
+  .filter((m) => !m.isError)
+  .map((m) => `      { role: "${m.role}", content: "${m.content.replace(/"/g, '\\"')}" },`)
+  .join("\n")}
     ],
     temperature: ${temperature},
     max_tokens: ${maxTokens},
-    stream: true,
+    stream: true,${isJsonMode ? '\n    response_format: { type: "json_object" },' : ""}
   });
 
   for await (const chunk of chatCompletion) {
@@ -528,7 +598,7 @@ main();`;
             <span className="text-[#F2EFE9] font-bold truncate max-w-[200px]">
               {availableModels.find((m) => m.id === model)?.name || model}
             </span>
-            <span className="text-[10px] text-[#FF3B00] px-1 bg-[#FF3B00]/10">
+            <span className="text-[10px] text-[#FF3B00] px-1 bg-[#FF3B00]/10 font-bold">
               LPU
             </span>
           </div>
@@ -677,6 +747,19 @@ main();`;
                     )}
                   </div>
 
+                  {/* DeepSeek R1 Reasoning Accordion (if present) */}
+                  {msg.reasoning && (
+                    <div className="mb-4 border border-[#FF3B00]/30 bg-[#FF3B00]/5 p-3 text-xs font-mono">
+                      <div className="flex items-center gap-2 text-[#FF3B00] font-bold text-[10px] uppercase mb-1.5">
+                        <span className="w-1.5 h-1.5 bg-[#FF3B00] animate-pulse" />
+                        <span>THINKING PROCESS // CHAIN OF THOUGHT</span>
+                      </div>
+                      <div className="whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto text-[11px] text-[#F2EFE9]/70">
+                        {msg.reasoning}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Content */}
                   <div className="font-mono text-xs sm:text-sm text-[#F2EFE9] leading-relaxed whitespace-pre-wrap">
                     {msg.content}
@@ -688,7 +771,7 @@ main();`;
                       <button
                         onClick={() => {
                           setModel("llama-3.3-70b-versatile");
-                          handleSubmit("How far is the Moon from Earth?");
+                          handleSubmit(undefined, "llama-3.3-70b-versatile");
                         }}
                         className="px-3 py-1.5 bg-[#FF3B00] text-[#0B0B0C] font-bold text-xs uppercase hover:bg-white transition-colors"
                       >
@@ -697,12 +780,29 @@ main();`;
                       <button
                         onClick={() => {
                           setModel("llama-3.1-8b-instant");
-                          handleSubmit("How far is the Moon from Earth?");
+                          handleSubmit(undefined, "llama-3.1-8b-instant");
                         }}
                         className="px-3 py-1.5 border border-[#F2EFE9]/30 text-[#F2EFE9] hover:border-[#FF3B00] text-xs uppercase transition-colors"
                       >
-                        Try Llama 3.1 8B Instant
+                        Try Llama 3.1 8B Instant (~850 tok/s)
                       </button>
+                      <button
+                        onClick={() => {
+                          setModel("openai/gpt-oss-120b");
+                          handleSubmit(undefined, "openai/gpt-oss-120b");
+                        }}
+                        className="px-3 py-1.5 border border-[#FF3B00]/50 text-[#FF3B00] hover:bg-[#FF3B00]/10 text-xs uppercase transition-colors"
+                      >
+                        Try OpenAI GPT-OSS 120B
+                      </button>
+                      {apiKey && (
+                        <button
+                          onClick={() => fetchLiveGroqModels(apiKey)}
+                          className="px-3 py-1.5 border border-[#F2EFE9]/20 text-[#F2EFE9]/70 hover:text-white text-xs uppercase transition-colors"
+                        >
+                          ↻ Sync My Groq Models
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -719,6 +819,19 @@ main();`;
                   </div>
                   <span className="font-bold">INFERENCE IN PROGRESS...</span>
                 </div>
+
+                {/* Live Reasoning Stream (DeepSeek R1) */}
+                {streamingReasoning && (
+                  <div className="mb-4 border border-[#FF3B00]/30 bg-[#FF3B00]/10 p-3 text-xs font-mono">
+                    <div className="flex items-center gap-2 text-[#FF3B00] font-bold text-[10px] uppercase mb-1">
+                      <span className="w-1.5 h-1.5 bg-[#FF3B00] animate-pulse" />
+                      <span>THINKING IN PROGRESS (REASONING)...</span>
+                    </div>
+                    <div className="whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto text-[11px] text-[#F2EFE9]/70">
+                      {streamingReasoning}
+                    </div>
+                  </div>
+                )}
 
                 <div className="font-mono text-xs sm:text-sm text-[#F2EFE9] leading-relaxed whitespace-pre-wrap">
                   {streamingContent}
@@ -821,15 +934,23 @@ main();`;
               className="w-full bg-[#0B0B0C] border border-[#F2EFE9]/30 p-2 text-xs text-[#F2EFE9] font-mono focus:outline-none focus:border-[#FF3B00]"
             />
 
-            <div className="text-[10px] text-[#F2EFE9]/50 flex justify-between pt-1">
-              <span>
-                {apiKey ? "✓ Groq Key Stored" : "Simulation Mode (No Key)"}
+            <div className="text-[10px] flex justify-between items-center pt-1">
+              <span
+                className={
+                  apiKeyStatus === "valid"
+                    ? "text-emerald-400 font-bold"
+                    : apiKeyStatus === "invalid"
+                    ? "text-red-400 font-bold"
+                    : "text-[#F2EFE9]/50"
+                }
+              >
+                {apiKeyStatusMsg || (apiKey ? "✓ Key Saved" : "Simulation Mode (No Key)")}
               </span>
               <a
                 href="https://console.groq.com/keys"
                 target="_blank"
                 rel="noreferrer"
-                className="text-[#FF3B00] underline"
+                className="text-[#FF3B00] underline ml-2 whitespace-nowrap"
               >
                 Get Groq Key ↗
               </a>
@@ -894,7 +1015,7 @@ main();`;
                 max="2"
                 step="0.05"
                 value={temperature}
-                onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                onChange={(e) => setTemperature(parseFloat(e.target.value) || 0)}
                 className="w-16 bg-[#0B0B0C] border border-[#F2EFE9]/30 p-1 text-right text-xs text-[#FF3B00] font-bold"
               />
             </div>
@@ -924,7 +1045,7 @@ main();`;
                 max="32768"
                 step="64"
                 value={maxTokens}
-                onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+                onChange={(e) => setMaxTokens(parseInt(e.target.value) || 2048)}
                 className="w-16 bg-[#0B0B0C] border border-[#F2EFE9]/30 p-1 text-right text-xs text-[#FF3B00] font-bold"
               />
             </div>

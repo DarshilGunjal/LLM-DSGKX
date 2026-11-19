@@ -134,8 +134,10 @@ export default function TensorCore3D() {
 
     const onMouseMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
-      const normX = ((e.clientX - rect.left) / width) * 2 - 1;
-      const normY = -(((e.clientY - rect.top) / height) * 2 - 1);
+      const w = rect.width || width || 800;
+      const h = rect.height || height || 500;
+      const normX = ((e.clientX - rect.left) / w) * 2 - 1;
+      const normY = -(((e.clientY - rect.top) / h) * 2 - 1);
 
       if (isDragging) {
         const deltaX = e.clientX - prevMouseX;
@@ -170,9 +172,11 @@ export default function TensorCore3D() {
       if (!container) return;
       const newW = container.clientWidth;
       const newH = container.clientHeight;
-      camera.aspect = newW / newH;
-      camera.updateProjectionMatrix();
-      renderer.setSize(newW, newH);
+      if (newW > 0 && newH > 0) {
+        camera.aspect = newW / newH;
+        camera.updateProjectionMatrix();
+        renderer.setSize(newW, newH);
+      }
     };
     window.addEventListener("resize", onResize);
 
@@ -230,9 +234,13 @@ export default function TensorCore3D() {
       }
       renderer.dispose();
       coreGeo.dispose();
+      coreMat.dispose();
       innerGeo.dispose();
+      innerMat.dispose();
       particleGeo.dispose();
+      particleMat.dispose();
       lineGeo.dispose();
+      lineMat.dispose();
     };
   }, []);
 

@@ -494,7 +494,7 @@ export default function HorizontalGallery() {
 
     const ctx = gsap.context(() => {
       // Calculate exact scroll distance: track scrollWidth minus container width
-      const getScrollAmount = () => track.scrollWidth - window.innerWidth;
+      const getScrollAmount = () => Math.max(0, track.scrollWidth - window.innerWidth);
 
       gsap.to(track, {
         x: () => -getScrollAmount(),
