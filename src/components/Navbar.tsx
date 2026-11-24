@@ -129,6 +129,14 @@ export default function Navbar() {
           >
             [07] PLAYGROUND ↗
           </Link>
+          <Link
+            href="/perplexity"
+            data-cursor="PERPLEXITY"
+            onClick={playClickSound}
+            className="text-[#F2EFE9] font-bold hover:text-[#FF3B00] transition-colors"
+          >
+            [08] PERPLEXITY ↗
+          </Link>
         </nav>
 
         {/* Telemetry Clock & Audio & CTA */}
